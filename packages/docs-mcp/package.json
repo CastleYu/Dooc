@@ -1,0 +1,17 @@
+{
+  "name": "@dooc/docs-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "dooc-mcp": "./dist/stdio.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/stdio.js"
+  },
+  "dependencies": {
+    "@dooc/docs-api": "0.1.0",
+    "@modelcontextprotocol/sdk": "^1.22.0"
+  }
+}

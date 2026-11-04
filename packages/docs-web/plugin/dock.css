@@ -1,0 +1,79 @@
+.dooc-dock {
+  box-sizing: border-box;
+  position: fixed;
+  z-index: 30;
+  left: 272px;
+  right: 24px;
+  bottom: 16px;
+  max-height: 42vh;
+  overflow: auto;
+  margin: 0;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--rp-c-divider, #d8dee8);
+  border-radius: 14px;
+  background: var(--rp-c-bg, #fff);
+  box-shadow: 0 10px 30px rgba(23, 32, 51, 0.12);
+}
+
+.dooc-dock-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.dooc-dock-bar h2,
+.dooc-dock h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.dooc-dock-sub {
+  margin-top: 12px;
+}
+
+.dooc-dock p {
+  margin: 0 0 8px;
+  color: var(--rp-c-text-2, #4b5563);
+  font-size: 14px;
+}
+
+.dooc-dock label {
+  display: block;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.dooc-dock input,
+.dooc-dock textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--rp-c-divider, #d0d7e2);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+}
+
+.dooc-dock button {
+  margin-top: 0;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--rp-c-brand, #1f4e79);
+  color: #fff;
+  cursor: pointer;
+}
+
+.dooc-marker {
+  margin-top: 12px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 960px) {
+  .dooc-dock {
+    left: 12px;
+    right: 12px;
+  }
+}

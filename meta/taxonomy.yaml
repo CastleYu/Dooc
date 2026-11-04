@@ -1,0 +1,17 @@
+types:
+  - architecture
+  - design
+  - adr
+  - api
+  - guide
+  - reference
+  - analysis
+statuses:
+  documents:
+    - draft
+    - reviewed
+  annotations:
+    - open
+    - in_progress
+    - resolved
+    - dismissed

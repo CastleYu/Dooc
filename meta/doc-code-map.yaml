@@ -1,0 +1,11 @@
+architecture.quartz-lantern:
+  code_refs:
+    - src/lantern/
+  symbols:
+    - QuartzLantern
+    - LanternContext
+design.annotation-store:
+  code_refs:
+    - packages/docs-api/src/svc.ts
+  symbols:
+    - Svc

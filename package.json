@@ -1,0 +1,23 @@
+{
+  "name": "dooc",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "packages/docs-api",
+    "packages/docs-mcp",
+    "packages/docs-web"
+  ],
+  "scripts": {
+    "build:svc": "tsc -p packages/docs-api/tsconfig.json && tsc -p packages/docs-mcp/tsconfig.json",
+    "build:web": "npm run build -w @dooc/docs-web",
+    "test": "npm run build:svc && node --test packages/docs-api/test/flow.test.mjs packages/docs-mcp/test/mcp.test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

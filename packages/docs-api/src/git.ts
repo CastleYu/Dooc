@@ -87,7 +87,7 @@ export class Git {
     const branch = `dooc/chg-${changeId}`;
     const before = fs.readFileSync(this.abs(rel));
     try {
-      this.run(["switch", "-c", branch]);
+      this.run(["switch", "-C", branch]);
       fs.writeFileSync(this.abs(rel), content);
       this.run(["add", "--", rel]);
       this.run(["commit", "-m", `docs: update ${docId}`]);

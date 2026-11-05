@@ -2,7 +2,7 @@
   box-sizing: border-box;
   position: fixed;
   z-index: 30;
-  left: 272px;
+  left: calc(var(--rp-sidebar-width, 20rem) + 16px);
   right: 24px;
   bottom: 16px;
   max-height: 42vh;

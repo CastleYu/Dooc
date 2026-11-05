@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { Db } from "./db.js";
@@ -28,6 +28,7 @@ export class Svc {
   git: Git;
   db: Db;
   docs = new Map<string, Doc>();
+  stamp = "";
 
   constructor(repo: string, dbFile: string) {
     this.git = new Git(path.resolve(repo));
@@ -77,6 +78,26 @@ export class Svc {
       put.run(id, doc.title, doc.description, doc.type, doc.status, rel, body, JSON.stringify(meta.data));
       fts.run(id, doc.title, body);
     }
+    this.stamp = this.fingerprint();
+  }
+
+  sync(): void {
+    const next = this.fingerprint();
+    if (next !== this.stamp) this.reindex();
+  }
+
+  fingerprint(): string {
+    const root = path.join(this.git.root, "docs");
+    const files: string[] = [];
+    if (fs.existsSync(root)) this.walk(root, files);
+    files.sort();
+    const rows: string[] = [];
+    for (const abs of files) {
+      const rel = path.relative(this.git.root, abs).split(path.sep).join("/");
+      const digest = createHash("sha256").update(fs.readFileSync(abs)).digest("hex");
+      rows.push(`${rel} ${digest}`);
+    }
+    return rows.join("\n");
   }
 
   walk(dir: string, out: string[]): void {
@@ -89,12 +110,14 @@ export class Svc {
   }
 
   doc(id: string): Doc {
+    this.sync();
     const found = this.docs.get(id);
     if (!found) throw new Fail(Code.notFound, `document ${id} not found`);
     return found;
   }
 
   search(query: string, filters?: { type?: string; status?: string; tag?: string }): Record<string, unknown>[] {
+    this.sync();
     const q = query.trim();
     if (!q) return [];
     const like = `%${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
@@ -170,6 +193,7 @@ export class Svc {
   }
 
   index(): Record<string, unknown>[] {
+    this.sync();
     return [...this.docs.values()].map((doc) => ({
       doc_id: doc.id,
       title: doc.title,
@@ -227,7 +251,13 @@ export class Svc {
   }
 
   reply(id: string, content: string, authorType: string, authorId: string): Record<string, unknown> {
-    const parent = this.noteRow(id);
+    let parent = this.noteRow(id);
+    const seen = new Set<string>();
+    while (parent.parent_id) {
+      if (seen.has(parent.id)) break;
+      seen.add(parent.id);
+      parent = this.noteRow(parent.parent_id);
+    }
     if (!content.trim()) throw new Fail(Code.badAnchor, "reply is empty");
     if (authorType !== Actor.user && authorType !== Actor.agent) {
       throw new Fail(Code.badAnchor, "author type must be user or agent");
@@ -252,12 +282,12 @@ export class Svc {
         authorId,
         content,
         Ann.open,
-        id,
+        parent.id,
         parent.version_sha,
         now,
         now,
       );
-    return this.note(id);
+    return this.note(parent.id);
   }
 
   moveNote(id: string, status: string): Record<string, unknown> {

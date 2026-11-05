@@ -311,4 +311,126 @@ describe("collaboration", () => {
     const published = fs.readFileSync(goodFile);
     assert.equal(published.includes(Buffer.from("type: novel")), false);
   });
+
+  it("reads a disk edit without a manual reindex", async () => {
+    const box = fresh();
+    open.push(box);
+    await listen(box);
+    const abs = fileOf(box.repo);
+    fs.appendFileSync(abs, "\n磁盘新句子 SOLAR-INK-441。\n");
+    const got = await call(box, "GET", `/api/docs/${fixtureId}`);
+    const sha = git(box.repo, ["hash-object", "--", "docs/architecture/quartz-lantern.md"]).trim();
+    assert.match(got.json.markdown, /SOLAR-INK-441/);
+    assert.equal(got.json.version_sha, sha);
+    const found = await call(box, "GET", "/api/search?q=SOLAR-INK-441");
+    assert.ok(found.json.hits.some((hit) => hit.doc_id === fixtureId));
+    const published = hashOf(box.repo);
+    const next = got.json.markdown.replace(
+      "Rspress 只渲染已发布的 Markdown。",
+      "Rspress 只渲染已发布的 Markdown。\n\n补丁跟着磁盘走。",
+    );
+    const diff = patch(box.repo, next);
+    const proposed = await call(box, "POST", "/api/changes", {
+      doc_id: fixtureId,
+      patch: diff,
+      reason: "disk",
+      base_sha: sha,
+    });
+    assert.equal(proposed.status, 200);
+    assert.equal(hashOf(box.repo), published);
+  });
+
+  it("rejects a non-integer occurrence and ignores headings inside fences", async () => {
+    const box = fresh();
+    open.push(box);
+    await listen(box);
+    const abs = fileOf(box.repo);
+    let text = fs.readFileSync(abs, "utf8");
+    const line = `## ${heading}\n`;
+    const at = text.indexOf(line);
+    text = text.slice(0, at + line.length) + "\n```md\n# 假标题\n```\n\n" + text.slice(at + line.length);
+    text = text.replace(quote, `${quote}\n\n再记一次：${quote}`);
+    fs.writeFileSync(abs, text);
+    const bad = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId,
+      anchor: { heading, quote, occurrence: "nope" },
+      content: "次数不对",
+      author: { type: "user", id: "user-001" },
+    });
+    assert.equal(bad.status, 400);
+    assert.equal(bad.json.error.code, "bad_anchor");
+    const fraction = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId,
+      anchor: { heading, quote, occurrence: 1.5 },
+      content: "半次",
+      author: { type: "user", id: "user-001" },
+    });
+    assert.equal(fraction.status, 400);
+    const outline = await call(box, "GET", `/api/docs/${fixtureId}/outline`);
+    assert.equal(outline.json.headings.some((item) => item.text === "假标题"), false);
+    const created = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId,
+      anchor: { heading, quote, occurrence: 2 },
+      content: "第二次仍在这一节",
+      author: { type: "user", id: "user-001" },
+    });
+    assert.equal(created.status, 200);
+    assert.equal(created.json.anchor.state, "bound");
+    assert.equal(created.json.anchor.occurrence, 2);
+  });
+
+  it("keeps a reply to a reply on the root thread", async () => {
+    const box = fresh();
+    open.push(box);
+    await listen(box);
+    const created = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId,
+      anchor: { heading, quote, occurrence: 1 },
+      content: "根批注",
+      author: { type: "user", id: "user-001" },
+    });
+    const child = await call(box, "POST", `/api/comments/${created.json.id}/replies`, {
+      content: "第一层回复",
+      author: { type: "agent", id: "agent-1" },
+    });
+    const childId = child.json.replies[0].id;
+    const nested = await call(box, "POST", `/api/comments/${childId}/replies`, {
+      content: "第二层回复",
+      author: { type: "user", id: "user-001" },
+    });
+    assert.equal(nested.status, 200);
+    assert.equal(nested.json.id, created.json.id);
+    assert.deepEqual(nested.json.replies.map((item) => item.content), ["第一层回复", "第二层回复"]);
+    const listed = await call(box, "GET", `/api/comments?doc_id=${fixtureId}`);
+    const thread = listed.json.comments.find((item) => item.id === created.json.id);
+    assert.equal(thread.replies.length, 2);
+  });
+
+  it("approves when the change branch already exists", async () => {
+    const box = fresh();
+    open.push(box);
+    await listen(box);
+    const doc = await call(box, "GET", `/api/docs/${fixtureId}`);
+    const sentence = "Retry line BRANCH-KEEP-77.";
+    const next = doc.json.markdown.replace(
+      "正式正文只经过人工批准后进入 Git。",
+      `正式正文只经过人工批准后进入 Git。\n\n${sentence}`,
+    );
+    const diff = patch(box.repo, next);
+    const proposed = await call(box, "POST", "/api/changes", {
+      doc_id: fixtureId,
+      patch: diff,
+      reason: "重试合并",
+      base_sha: doc.json.version_sha,
+    });
+    const submitted = await call(box, "POST", `/api/changes/${proposed.json.change_id}/submit`, {});
+    assert.equal(submitted.json.status, "awaiting_review");
+    git(box.repo, ["branch", `dooc/chg-${proposed.json.change_id}`]);
+    const merged = await call(box, "POST", `/api/changes/${proposed.json.change_id}/approve`, {}, {
+      "x-actor-type": "user",
+      "x-actor-id": "editor",
+    });
+    assert.equal(merged.status, 200);
+    assert.match(fs.readFileSync(fileOf(box.repo), "utf8"), /BRANCH-KEEP-77/);
+  });
 });

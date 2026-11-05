@@ -22,12 +22,31 @@ export class Jump {
 }
 
 export class Anchor {
+  static hide(lines: string[]): boolean[] {
+    const hide = lines.map(() => false);
+    let mark = "";
+    for (let i = 0; i < lines.length; i++) {
+      const found = /^ {0,3}(`{3,}|~{3,})/.exec(lines[i]);
+      if (!mark && found) {
+        mark = found[1][0];
+        hide[i] = true;
+        continue;
+      }
+      if (!mark) continue;
+      hide[i] = true;
+      if (new RegExp(`^ {0,3}${mark}{3,}\\s*$`).test(lines[i])) mark = "";
+    }
+    return hide;
+  }
+
   static section(md: string, heading: string): string | null {
     const lines = md.split(/\r?\n/);
+    const hide = Anchor.hide(lines);
     const want = heading.trim();
     let start = -1;
     let level = 0;
     for (let i = 0; i < lines.length; i++) {
+      if (hide[i]) continue;
       const m = /^(#{1,6})\s+(.*)$/.exec(lines[i]);
       if (!m) continue;
       if (start < 0 && m[2].trim() === want) {
@@ -55,17 +74,21 @@ export class Anchor {
   }
 
   static bind(md: string, heading: string, quote: string, occurrence: number): string {
+    if (!Number.isInteger(occurrence) || occurrence < 1) return Ann.orphaned;
     const sec = Anchor.section(md, heading);
     if (sec == null) return Ann.orphaned;
     const n = Anchor.count(sec, quote);
-    if (occurrence < 1 || occurrence > n) return Ann.orphaned;
+    if (occurrence > n) return Ann.orphaned;
     return Ann.bound;
   }
 
   static headings(md: string): { level: number; text: string }[] {
+    const lines = md.split(/\r?\n/);
+    const hide = Anchor.hide(lines);
     const out: { level: number; text: string }[] = [];
-    for (const line of md.split(/\r?\n/)) {
-      const m = /^(#{1,6})\s+(.*)$/.exec(line);
+    for (let i = 0; i < lines.length; i++) {
+      if (hide[i]) continue;
+      const m = /^(#{1,6})\s+(.*)$/.exec(lines[i]);
       if (m) out.push({ level: m[1].length, text: m[2].trim() });
     }
     return out;

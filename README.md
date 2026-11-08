@@ -18,7 +18,7 @@ node packages/docs-mcp/dist/stdio.js --repo . --db .dooc/collab.db
 
 ## 对话驱动的协作
 
-配置 MCP 后，加载 `.agents/skills/` 的五个技能。直接在外部 CLI 会话中说：
+配置 MCP 后，加载唯一的 [Dooc Skill](.agents/skills/dooc/SKILL.md)。直接在外部 CLI 会话中说：
 
 - “帮我分析当前代码仓的内容，并写入 Dooc。”
 - “根据 Dooc 中的批注进行分析或回答，修订、补充方案或回复线程。”

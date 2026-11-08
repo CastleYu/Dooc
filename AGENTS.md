@@ -4,12 +4,9 @@
 
 外部 CLI（OpenCode、Codex 或其他）自己运行。它通过下面的技能理解流程，通过 MCP 读写文档。
 
-## Skills
+## Skill
 
-- `.agents/skills/docs-read/SKILL.md`
-- `.agents/skills/docs-write/SKILL.md`
-- `.agents/skills/docs-review/SKILL.md`
-- `.agents/skills/code-to-docs/SKILL.md`
+所有 Dooc 文档功能统一使用 `.agents/skills/dooc/SKILL.md`，按用户要求选择读取、写入、批注、审核或方案实施流程。
 
 ## MCP
 

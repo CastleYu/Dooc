@@ -10,7 +10,7 @@ import { FmRules, Http, Svc } from "../dist/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const workspace = path.resolve(here, "..", "..", "..");
-const py = path.join(workspace, ".agents", "skills", "docs-write", "scripts", "validate-frontmatter.py");
+const py = path.join(workspace, ".agents", "skills", "dooc", "scripts", "validate-frontmatter.py");
 const fixtureId = "architecture.quartz-lantern";
 const quote = "不在本站内嵌运行时";
 const heading = "系统总体架构";

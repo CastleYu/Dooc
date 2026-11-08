@@ -12,6 +12,13 @@ export default defineConfig({
   llms: true,
   search: {},
   plugins: [pluginCollab()],
+  builderConfig: {
+    server: {
+      proxy: {
+        "/api": "http://127.0.0.1:8787",
+      },
+    },
+  },
   themeConfig: {
     nav: [
       { text: "架构", link: "/architecture/quartz-lantern" },

@@ -5,3 +5,7 @@ doc_build/
 *.log
 .DS_Store
 archive/
+
+.work/
+__pycache__/
+*.pyc

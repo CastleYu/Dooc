@@ -1,79 +1,1160 @@
-.dooc-dock {
-  box-sizing: border-box;
-  position: fixed;
-  z-index: 30;
-  left: calc(var(--rp-sidebar-width, 20rem) + 16px);
-  right: 24px;
-  bottom: 16px;
-  max-height: 42vh;
-  overflow: auto;
-  margin: 0;
-  padding: 12px 14px 14px;
-  border: 1px solid var(--rp-c-divider, #d8dee8);
-  border-radius: 14px;
-  background: var(--rp-c-bg, #fff);
-  box-shadow: 0 10px 30px rgba(23, 32, 51, 0.12);
+/* Dooc Collaboration Overlay Styles */
+
+/* Root overlay container - takes 0 layout space, does not shift document */
+.dooc-root {
+  position: static;
 }
 
-.dooc-dock-bar {
+/* Base interactive focus rings */
+.dooc-floating-btn:focus-visible,
+.dooc-retry-btn:focus-visible,
+.dooc-task-trigger:focus-visible,
+.dooc-icon-btn:focus-visible,
+.dooc-btn:focus-visible,
+.dooc-field-input:focus-visible,
+.dooc-field-textarea:focus-visible {
+  outline: 2px solid var(--rp-c-brand, #0095ff);
+  outline-offset: 2px;
+}
+
+/* =========================================================================
+   1. Floating Selection Input Box (matches screenshot)
+   ========================================================================= */
+
+.dooc-floating-box-wrapper {
+  animation: dooc-fade-in 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+}
+
+.dooc-floating-box {
   display: flex;
-  gap: 10px;
   align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 14px;
+  border-radius: 9999px;
+  background: var(--rp-c-bg, #ffffff);
+  border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.28));
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.16), 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
-.dooc-dock-bar h2,
-.dooc-dock h2 {
-  margin: 0;
-  font-size: 15px;
-}
-
-.dooc-dock-sub {
-  margin-top: 12px;
-}
-
-.dooc-dock p {
-  margin: 0 0 8px;
-  color: var(--rp-c-text-2, #4b5563);
-  font-size: 14px;
-}
-
-.dooc-dock label {
-  display: block;
-  margin: 8px 0;
+.dooc-floating-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--rp-c-text-1, #1f2937);
   font-size: 13px;
+  line-height: 1.45;
+  padding: 5px 0;
+  resize: none;
+  outline: none;
+  font-family: inherit;
 }
 
-.dooc-dock input,
-.dooc-dock textarea {
-  display: block;
-  width: 100%;
-  margin-top: 4px;
-  padding: 8px 10px;
-  border: 1px solid var(--rp-c-divider, #d0d7e2);
+.dooc-floating-input::placeholder {
+  color: var(--rp-c-text-3, #9ca3af);
+}
+
+.dooc-floating-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.dooc-floating-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  border-radius: 9999px;
+  transition: opacity 0.15s ease, transform 0.15s ease, background-color 0.15s ease;
+}
+
+.dooc-floating-submit {
+  width: 28px;
+  height: 28px;
+  background: var(--rp-c-brand, #0095ff);
+  color: #ffffff;
+}
+
+.dooc-floating-submit:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: scale(1.04);
+}
+
+.dooc-floating-submit:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.dooc-floating-submit:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.dooc-floating-close {
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  color: var(--rp-c-text-3, #9ca3af);
+}
+
+.dooc-floating-close:hover {
+  color: var(--rp-c-text-1, #1f2937);
+  background: var(--rp-c-bg-mute, rgba(140, 149, 159, 0.14));
+}
+
+/* Floating Error alert */
+.dooc-floating-error {
+  margin-top: 6px;
+  padding: 6px 12px;
   border-radius: 8px;
+  background: color-mix(in srgb, #ef4444 12%, var(--rp-c-bg, #fff));
+  border: 1px solid color-mix(in srgb, #ef4444 35%, transparent);
+  color: #dc2626;
+  font-size: 12px;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.12);
+  animation: dooc-fade-in 0.15s ease;
+}
+
+.dark .dooc-floating-error {
+  color: #f87171;
+  background: color-mix(in srgb, #ef4444 18%, #1f2937);
+}
+
+.dooc-retry-btn {
+  border: 1px solid currentColor;
   background: transparent;
   color: inherit;
-}
-
-.dooc-dock button {
-  margin-top: 0;
-  padding: 8px 14px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--rp-c-brand, #1f4e79);
-  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
   cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease;
 }
 
-.dooc-marker {
-  margin-top: 12px;
+.dooc-retry-btn:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+/* Floating selection tip */
+.dooc-selection-tip {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--rp-c-text-1, #1f2937);
+  color: var(--rp-c-bg, #ffffff);
   font-size: 12px;
-  letter-spacing: 0.02em;
+  font-weight: 500;
+  line-height: 1.4;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  animation: dooc-fade-in 0.15s ease;
+  white-space: nowrap;
 }
 
-@media (max-width: 960px) {
-  .dooc-dock {
-    left: 12px;
-    right: 12px;
+/* =========================================================================
+   2. Comment Marker Overlay & Highlights
+   ========================================================================= */
+
+.dooc-marker-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+  z-index: 25;
+}
+
+.dooc-selection-active-highlight {
+  background: color-mix(in srgb, var(--rp-c-brand, #0095ff) 22%, transparent);
+  border-bottom: 2px solid var(--rp-c-brand, #0095ff);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.dooc-comment-highlight {
+  background: color-mix(in srgb, var(--rp-c-brand, #0095ff) 12%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--rp-c-brand, #0095ff) 60%, transparent);
+  border-radius: 2px;
+  pointer-events: none;
+  transition: background-color 0.15s ease, border-bottom-color 0.15s ease;
+}
+
+.dooc-comment-highlight--active {
+  background: color-mix(in srgb, var(--rp-c-brand, #0095ff) 24%, transparent);
+  border-bottom-color: var(--rp-c-brand, #0095ff);
+}
+
+/* =========================================================================
+   3. Comment Detail Popover
+   ========================================================================= */
+
+.dooc-detail-popover {
+  border-radius: 14px;
+  background: var(--rp-c-bg, #ffffff);
+  border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.28));
+  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.18), 0 3px 12px rgba(15, 23, 42, 0.08);
+  padding: 12px 14px;
+  pointer-events: auto;
+  animation: dooc-scale-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.dooc-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.dooc-detail-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dooc-detail-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rp-c-text-1, #1f2937);
+}
+
+.dooc-detail-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--rp-c-text-3, #9ca3af);
+  background: var(--rp-c-bg-mute, rgba(140, 149, 159, 0.15));
+  padding: 1px 6px;
+  border-radius: 9999px;
+}
+
+.dooc-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--rp-c-text-3, #9ca3af);
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.dooc-icon-btn:hover {
+  color: var(--rp-c-text-1, #1f2937);
+  background: var(--rp-c-bg-mute, rgba(140, 149, 159, 0.14));
+}
+
+.dooc-detail-quote-box {
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--rp-c-bg-mute, rgba(140, 149, 159, 0.08));
+  border-left: 3px solid var(--rp-c-brand, #0095ff);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--rp-c-text-2, #4b5563);
+  max-height: 72px;
+  overflow-y: auto;
+}
+
+.dooc-quote-mark {
+  color: var(--rp-c-brand, #0095ff);
+  font-weight: 700;
+}
+
+.dooc-quote-text {
+  font-style: normal;
+}
+
+.dooc-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.dooc-comment-card {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--rp-c-bg-soft, rgba(140, 149, 159, 0.05));
+  border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.15));
+}
+
+.dooc-comment-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.dooc-comment-author {
+  font-weight: 600;
+  color: var(--rp-c-text-1, #1f2937);
+}
+
+.dooc-comment-time {
+  color: var(--rp-c-text-3, #9ca3af);
+}
+
+.dooc-comment-content {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--rp-c-text-1, #1f2937);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dooc-comment-replies {
+  margin-top: 6px;
+  padding-left: 8px;
+  border-left: 2px solid var(--rp-c-divider, rgba(140, 149, 159, 0.25));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dooc-reply-card {
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: var(--rp-c-bg-mute, rgba(140, 149, 159, 0.06));
+}
+
+/* =========================================================================
+   4. Independent Task Entrance & Popover
+   ========================================================================= */
+
+.dooc-task-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 50;
+  pointer-events: auto;
+}
+
+.dooc-task-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 9999px;
+  background: var(--rp-c-bg, #ffffff);
+  border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.28));
+  color: var(--rp-c-text-1, #1f2937);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.dooc-task-trigger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.16);
+  background: var(--rp-c-bg, #ffffff);
+}
+
+.dooc-task-trigger:active {
+  transform: translateY(1px);
+}
+
+.dooc-task-popover {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 310px;
+  max-width: calc(100vw - 32px);
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--rp-c-bg, #ffffff);
+  border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.28));
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.2), 0 3px 12px rgba(15, 23, 42, 0.08);
+  animation: dooc-scale-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.dooc-task-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.dooc-task-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--rp-c-text-1, #1f2937);
+}
+
+.dooc-task-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dooc-task-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dooc-field-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--rp-c-text-2, #4b5563);
+}
+
+.dooc-field-input,
+.dooc-field-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.28));
+  background: var(--rp-c-bg-soft, rgba(140, 149, 159, 0.05));
+  color: var(--rp-c-text-1, #1f2937);
+  font-size: 13px;
+  line-height: 1.4;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dooc-field-textarea {
+  resize: vertical;
+}
+
+.dooc-task-status {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  animation: dooc-fade-in 0.15s ease;
+}
+
+.dooc-task-status--success {
+  background: color-mix(in srgb, #10b981 14%, var(--rp-c-bg, #fff));
+  border: 1px solid color-mix(in srgb, #10b981 35%, transparent);
+  color: #059669;
+}
+
+.dark .dooc-task-status--success {
+  color: #34d399;
+  background: color-mix(in srgb, #10b981 20%, #1f2937);
+}
+
+.dooc-task-status--error {
+  background: color-mix(in srgb, #ef4444 14%, var(--rp-c-bg, #fff));
+  border: 1px solid color-mix(in srgb, #ef4444 35%, transparent);
+  color: #dc2626;
+}
+
+.dark .dooc-task-status--error {
+  color: #f87171;
+  background: color-mix(in srgb, #ef4444 20%, #1f2937);
+}
+
+.dark .dooc-floating-box,
+.dark .dooc-detail-popover,
+.dark .dooc-task-trigger,
+.dark .dooc-task-popover {
+  background: var(--rp-c-bg, #1a1a1a);
+}
+
+.dooc-task-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.dooc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.dooc-btn:active {
+  transform: translateY(1px);
+}
+
+.dooc-btn--primary {
+  background: var(--rp-c-brand, #0095ff);
+  color: #ffffff;
+}
+
+.dooc-btn--primary:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.dooc-btn--primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dooc-btn--secondary {
+  background: var(--rp-c-bg-mute, rgba(140, 149, 159, 0.14));
+  color: var(--rp-c-text-2, #4b5563);
+}
+
+.dooc-btn--secondary:hover {
+  color: var(--rp-c-text-1, #1f2937);
+}
+
+/* =========================================================================
+   5. Error Toast
+   ========================================================================= */
+
+.dooc-error-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(220, 38, 38, 0.35);
+  animation: dooc-fade-in 0.15s ease;
+}
+
+.dooc-error-toast .dooc-retry-btn {
+  border-color: #ffffff;
+  color: #ffffff;
+}
+
+/* =========================================================================
+   6. Micro-animations & Responsiveness
+   ========================================================================= */
+
+@keyframes dooc-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dooc-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.dooc-spinner {
+  animation: dooc-spin 0.8s linear infinite;
+}
+
+@keyframes dooc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 480px) {
+  .dooc-task-container {
+    bottom: 16px;
+    right: 16px;
+  }
+
+  .dooc-floating-box {
+    padding: 3px 6px 3px 12px;
+  }
+}
+
+/* =========================================================================
+   7. Right Rail Layout Integration (Desktop TOC + Comments Alignment)
+   ========================================================================= */
+
+@media (width >= 1280px) {
+  body.dooc-doc-active {
+    --rp-outline-width: 320px;
+  }
+}
+
+/* Compact TOC handling between 1280px and 1440px to prevent card collision */
+@media (1280px <= width < 1440px) {
+  body.dooc-doc-active .rp-doc-layout__outline {
+    position: relative !important;
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    border-left: none !important;
+    padding-top: 8px !important;
+    pointer-events: none !important;
+  }
+
+  body.dooc-doc-active .rp-doc-layout__outline .rp-outline {
+    position: sticky !important;
+    top: calc(var(--rp-nav-height, 56px) + 8px) !important;
+    z-index: 35 !important;
+    max-height: 34px !important;
+    overflow: hidden !important;
+    border-radius: 8px !important;
+    background: var(--rp-c-bg, #ffffff) !important;
+    border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.25)) !important;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+    padding: 6px 12px !important;
+    transition: max-height 0.24s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease !important;
+    cursor: pointer !important;
+    pointer-events: auto !important;
+  }
+
+  body.dooc-doc-active .rp-doc-layout__outline .rp-outline:hover,
+  body.dooc-doc-active .rp-doc-layout__outline .rp-outline:focus-within {
+    max-height: 60vh !important;
+    overflow-y: auto !important;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16) !important;
+  }
+
+  body.dooc-doc-active .rp-doc-layout__outline .rp-outline__divider {
+    display: none !important;
+  }
+}
+
+/* Wide viewports (>= 1440px): Dedicated empty rail for TOC on the outer right */
+@media (width >= 1440px) {
+  body.dooc-doc-active {
+    --rp-outline-width: 460px;
+  }
+
+  body.dooc-doc-active .rp-doc-layout__outline {
+    position: relative !important;
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    border-left: none !important;
+    padding-top: 14px !important;
+    pointer-events: none !important;
+  }
+
+  body.dooc-doc-active .rp-doc-layout__outline .rp-outline {
+    position: sticky !important;
+    top: calc(var(--rp-nav-height, 56px) + 14px) !important;
+    margin-left: 280px !important;
+    width: 170px !important;
+    box-sizing: border-box !important;
+    max-height: calc(100vh - var(--rp-nav-height, 56px) - 32px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    border-left: 1px solid var(--rp-c-divider-light, rgba(140, 149, 159, 0.2)) !important;
+    padding: 8px 8px 16px 12px !important;
+    pointer-events: auto !important;
+  }
+
+  body.dooc-doc-active .rp-doc-layout__outline .rp-outline__divider {
+    display: none !important;
+  }
+}
+
+/* TOC Title & Header Container: single line, no clipping, proper spacing */
+body.dooc-doc-active .rp-doc-layout__outline .rp-outline .rp-outline__header,
+body.dooc-doc-active .rp-doc-layout__outline .rp-outline .rp-outline-header,
+body.dooc-doc-active .rp-doc-layout__outline .rp-outline > div:first-child {
+  padding: 0 !important;
+  margin: 0 0 6px 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  overflow: visible !important;
+}
+
+body.dooc-doc-active .rp-doc-layout__outline .rp-outline .rp-outline__title,
+body.dooc-doc-active .rp-doc-layout__outline .rp-outline .rp-outline-title,
+body.dooc-doc-active .rp-doc-layout__outline .rp-outline [class*="outline__title"],
+body.dooc-doc-active .rp-doc-layout__outline .rp-outline [class*="outline-title"],
+body.dooc-doc-active .rp-doc-layout__outline .rp-outline [class*="title"] {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  flex-shrink: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1.4 !important;
+  font-size: 11.5px !important;
+  letter-spacing: 0.02em !important;
+}
+
+.dooc-sidebar-mobile-host {
+  margin-top: 36px !important;
+  margin-bottom: 32px !important;
+  padding-top: 20px !important;
+  border-top: 1px solid var(--rp-c-divider-light, rgba(140, 149, 159, 0.2)) !important;
+}
+
+/* =========================================================================
+   8. Comment Track & Cards (Award-tier Document Alignment & Compact Design)
+   ========================================================================= */
+
+/* SVG Connecting Lines between Quote and Card */
+.dooc-sidebar-connector-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+  z-index: 26;
+}
+
+.dooc-connector-line {
+  fill: none;
+  transition: stroke 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              stroke-width 0.18s ease,
+              opacity 0.18s ease;
+}
+
+.dooc-connector-line--idle {
+  stroke: color-mix(in srgb, var(--rp-c-brand, #0095ff) 18%, transparent);
+  stroke-width: 1px;
+  opacity: 0.55;
+}
+
+.dooc-connector-line--pushed {
+  stroke: color-mix(in srgb, var(--rp-c-brand, #0095ff) 36%, transparent);
+  stroke-width: 1px;
+  stroke-dasharray: 2.5 2;
+  opacity: 0.75;
+}
+
+.dooc-connector-line--active {
+  stroke: var(--rp-c-brand, #0095ff);
+  stroke-width: 1.5px;
+  opacity: 0.95;
+}
+
+/* Sidebar Root */
+.dooc-sidebar {
+  font-family: inherit;
+  color: var(--rp-c-text-1, #1f2937);
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Desktop Track: Driven by real document coordinates, synchronous 1:1 scroll */
+.dooc-sidebar--desktop-track {
+  position: absolute;
+  top: 0;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+/* Mobile: Clean post-document compact flow */
+.dooc-sidebar--mobile {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0;
+}
+
+.dooc-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 0 10px 0;
+}
+
+.dooc-sidebar-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dooc-sidebar-icon {
+  color: var(--rp-c-brand, #0095ff);
+  flex-shrink: 0;
+}
+
+.dooc-sidebar-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--rp-c-text-1, #1f2937);
+  letter-spacing: -0.01em;
+}
+
+.dooc-sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dooc-sidebar-loading-indicator {
+  color: var(--rp-c-brand, #0095ff);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Inline error banner */
+.dooc-sidebar-inline-error {
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, #ef4444 10%, var(--rp-c-bg, #fff));
+  border: 1px solid color-mix(in srgb, #ef4444 26%, transparent);
+  color: #dc2626;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
+.dark .dooc-sidebar-inline-error {
+  color: #f87171;
+  background: color-mix(in srgb, #ef4444 18%, #1f2937);
+}
+
+.dooc-sidebar-inline-error-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mobile list container */
+.dooc-sidebar-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* =========================================================================
+   Individual Comment Card (Compact, Softened Boundaries, Zero Username/Avatar)
+   ========================================================================= */
+
+.dooc-sidebar-card {
+  box-sizing: border-box;
+  background: var(--rp-c-bg, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--rp-c-divider, rgba(140, 149, 159, 0.2)) 70%, transparent);
+  border-radius: 10px;
+  padding: 7px 10px;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.03);
+  transition: border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.16s ease;
+}
+
+.dooc-sidebar-card:hover {
+  border-color: color-mix(in srgb, var(--rp-c-brand, #0095ff) 40%, var(--rp-c-divider, rgba(140, 149, 159, 0.2)));
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05);
+}
+
+.dooc-sidebar-card--active {
+  border-color: var(--rp-c-brand, #0095ff) !important;
+  background: color-mix(in srgb, var(--rp-c-brand, #0095ff) 3.5%, var(--rp-c-bg, #ffffff)) !important;
+  box-shadow: 0 0 0 1px var(--rp-c-brand, #0095ff), 0 4px 14px rgba(0, 149, 255, 0.12) !important;
+}
+
+.dooc-sidebar-card--pushed {
+  border-left-color: color-mix(in srgb, var(--rp-c-brand, #0095ff) 60%, var(--rp-c-divider, rgba(140, 149, 159, 0.2)));
+}
+
+.dooc-sidebar-card--orphaned {
+  border-style: dashed;
+  background: color-mix(in srgb, #f59e0b 2.5%, var(--rp-c-bg, #ffffff));
+}
+
+/* Inline Quote Snippet & Actions (Locate / Status) */
+.dooc-sidebar-quote-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.dooc-sidebar-quote-row .dooc-sidebar-quote-snippet {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.dooc-sidebar-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 5px;
+  flex-shrink: 0;
+}
+
+.dooc-sidebar-status-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+
+.dooc-sidebar-status-tag--orphaned {
+  background: color-mix(in srgb, #f59e0b 14%, var(--rp-c-bg, #fff));
+  border: 1px solid color-mix(in srgb, #f59e0b 30%, transparent);
+  color: #d97706;
+}
+
+.dark .dooc-sidebar-status-tag--orphaned {
+  color: #fbbf24;
+  background: color-mix(in srgb, #f59e0b 20%, #1f2937);
+}
+
+.dooc-sidebar-locate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2.5px;
+  border: none;
+  background: transparent;
+  color: var(--rp-c-brand, #0095ff);
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 1.5px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.dooc-sidebar-locate-btn:hover {
+  background: color-mix(in srgb, var(--rp-c-brand, #0095ff) 10%, transparent);
+}
+
+/* Quote snippet - seamless typography: delicate border hint, soft text, zero background box/partition */
+.dooc-sidebar-quote-snippet {
+  margin: 0 0 5px 0;
+  padding: 1px 0 1px 7px;
+  border: none;
+  border-left: 2px solid color-mix(in srgb, var(--rp-c-brand, #0095ff) 35%, var(--rp-c-divider, rgba(140, 149, 159, 0.25)));
+  background: transparent;
+  font-size: 11px;
+  line-height: 1.42;
+  color: var(--rp-c-text-3, #9ca3af);
+  max-height: 48px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  transition: border-left-color 0.16s ease, color 0.16s ease;
+}
+
+.dooc-sidebar-quote-snippet .dooc-quote-mark {
+  color: color-mix(in srgb, var(--rp-c-brand, #0095ff) 50%, var(--rp-c-text-3, #9ca3af));
+  font-weight: 500;
+  margin: 0 1px;
+}
+
+.dooc-sidebar-card--active .dooc-sidebar-quote-snippet {
+  border-left-color: var(--rp-c-brand, #0095ff);
+  color: var(--rp-c-text-2, #4b5563);
+}
+
+/* Comments thread - cohesive flow immediately following quote */
+.dooc-sidebar-comments-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dooc-sidebar-comment-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dooc-sidebar-content {
+  font-size: 12px;
+  line-height: 1.46;
+  color: var(--rp-c-text-1, #1f2937);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Nested replies (Zero username/avatar) */
+.dooc-sidebar-replies {
+  margin-top: 4px;
+  padding-left: 8px;
+  border-left: 1.5px solid var(--rp-c-divider-light, rgba(140, 149, 159, 0.2));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dooc-sidebar-reply-item {
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: var(--rp-c-bg-soft, rgba(140, 149, 159, 0.04));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dooc-sidebar-content--reply {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--rp-c-text-1, #1f2937);
+}
+
+/* Skeletons */
+.dooc-sidebar-skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.dooc-sidebar-skeleton-card {
+  border-radius: 10px;
+  border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.15));
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dooc-skeleton-bar {
+  border-radius: 4px;
+  background: var(--rp-c-bg-mute, rgba(140, 149, 159, 0.14));
+  animation: dooc-shimmer 1.4s ease-in-out infinite;
+}
+
+.dooc-skeleton-bar--quote {
+  width: 85%;
+  height: 14px;
+}
+
+.dooc-skeleton-bar--meta {
+  width: 40%;
+  height: 11px;
+}
+
+.dooc-skeleton-bar--content {
+  width: 100%;
+  height: 13px;
+}
+
+.dooc-skeleton-bar--content-short {
+  width: 65%;
+  height: 13px;
+}
+
+@keyframes dooc-shimmer {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+
+/* Empty / Error State box */
+.dooc-sidebar-state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 28px 12px;
+}
+
+.dooc-sidebar-empty-icon {
+  margin-bottom: 8px;
+  color: var(--rp-c-text-3, #9ca3af);
+  opacity: 0.6;
+}
+
+.dooc-sidebar-state-icon {
+  margin-bottom: 6px;
+  color: #dc2626;
+}
+
+.dooc-sidebar-state-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--rp-c-text-2, #4b5563);
+  margin-bottom: 3px;
+}
+
+.dooc-sidebar-state-desc {
+  font-size: 11px;
+  color: var(--rp-c-text-3, #9ca3af);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.dooc-sidebar-retry-btn {
+  margin-top: 2px;
+}
+
+/* Dark mode adjustments */
+.dark .dooc-sidebar-card {
+  background: var(--rp-c-bg, #1a1a1a);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark .dooc-sidebar-card:hover {
+  border-color: color-mix(in srgb, var(--rp-c-brand, #0095ff) 50%, rgba(255, 255, 255, 0.1));
+}
+
+.dark .dooc-sidebar-card--active {
+  background: color-mix(in srgb, var(--rp-c-brand, #0095ff) 10%, #1a1a1a) !important;
+}
+
+.dark .dooc-sidebar-quote-snippet {
+  background: transparent;
+  border-left-color: color-mix(in srgb, var(--rp-c-brand, #0095ff) 40%, rgba(255, 255, 255, 0.15));
+}
+
+.dark .dooc-sidebar-card--active .dooc-sidebar-quote-snippet {
+  border-left-color: var(--rp-c-brand, #0095ff);
+}
+
+.dark .dooc-sidebar-reply-item {
+  background: rgba(255, 255, 255, 0.035);
 }

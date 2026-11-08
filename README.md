@@ -5,7 +5,7 @@
 ## 本地
 
 ```text
-npm install
+npm ci
 npm run build:svc
 npm test
 npm run build:web
@@ -13,4 +13,17 @@ node packages/docs-api/dist/cli.js --repo . --db .dooc/collab.db --port 8787
 node packages/docs-mcp/dist/stdio.js --repo . --db .dooc/collab.db
 ```
 
-页面上的批注和任务控件调用 `8787` 端口的协作接口，不改 Markdown。Agent 通过 MCP 提议修改；人批准后才会合并进当前 Git 分支。
+生产页面通过同源 `/api/` 访问协作接口，不改 Markdown；本地独立 API 示例端口为 `8787`。Agent 通过 MCP 提议修改；人批准后才会合并进当前 Git 分支。
+
+
+## 对话驱动的协作
+
+配置 MCP 后，加载 `.agents/skills/` 的五个技能。直接在外部 CLI 会话中说：
+
+- “帮我分析当前代码仓的内容，并写入 Dooc。”
+- “根据 Dooc 中的批注进行分析或回答，修订、补充方案或回复线程。”
+- “根据这一版方案进行实施。”
+
+前两项通过 MCP 创建或修改文档提议，校验后等待人工审核；第三项由 CLI 在代码仓实施，并记录所用方案版本与检查证据。Dooc 不主动回调 Agent，也不运行模型或代码。
+
+[配置、技能与三条实践流程](docs/guides/agent-setup.md)

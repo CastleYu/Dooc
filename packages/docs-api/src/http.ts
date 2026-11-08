@@ -65,6 +65,8 @@ export class Http {
     if (method === "GET" && path === "/api/docs") return { documents: this.svc.index() };
     const doc = /^\/api\/docs\/([^/]+)$/.exec(path);
     if (doc && method === "GET") return this.svc.get(decodeURIComponent(doc[1]));
+    const anchors = /^\/api\/docs\/([^/]+)\/anchors$/.exec(path);
+    if (anchors && method === "GET") return this.svc.anchors(decodeURIComponent(anchors[1]));
     const outline = /^\/api\/docs\/([^/]+)\/outline$/.exec(path);
     if (outline && method === "GET") return this.svc.outline(decodeURIComponent(outline[1]));
     const related = /^\/api\/docs\/([^/]+)\/related$/.exec(path);
@@ -83,6 +85,7 @@ export class Http {
         heading: String(anchor.heading ?? ""),
         quote: String(anchor.quote ?? ""),
         occurrence: Number(anchor.occurrence ?? 1),
+        versionSha: body.version_sha === undefined ? undefined : String(body.version_sha),
         content: String(body.content ?? ""),
         authorType: author.type,
         authorId: author.id,
@@ -118,6 +121,8 @@ export class Http {
     if (taskMove && method === "POST") {
       return this.svc.moveTask(decodeURIComponent(taskMove[1]), String(body.status ?? ""));
     }
+    if (method === "GET" && path === "/api/changes") return { changes: this.svc.changes(url.searchParams.get("doc_id") ?? undefined, url.searchParams.get("status") ?? undefined) };
+    if (method === "POST" && path === "/api/changes/create") return this.svc.proposeCreate({ docId: String(body.doc_id ?? ""), path: String(body.path ?? ""), markdown: String(body.markdown ?? ""), reason: String(body.reason ?? ""), actorId: who.id });
     if (method === "POST" && path === "/api/changes") {
       return this.svc.propose({
         docId: String(body.doc_id ?? ""),

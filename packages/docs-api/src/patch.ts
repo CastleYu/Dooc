@@ -62,7 +62,7 @@ export class Patch {
 
   static apply(text: string, diff: string): string {
     const nl = text.endsWith("\n");
-    const old = text.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
+    const old = text === "" ? [] : text.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
     const out: string[] = [];
     let cursor = 0;
     for (const hunk of Patch.hunks(diff)) {
@@ -87,6 +87,6 @@ export class Patch {
     }
     out.push(...old.slice(cursor));
     const joined = out.join("\n");
-    return nl || text.endsWith("\n") ? `${joined}\n` : joined;
+    return nl || text === "" ? `${joined}\n` : joined;
   }
 }

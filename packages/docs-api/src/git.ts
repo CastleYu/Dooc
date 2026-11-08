@@ -82,12 +82,16 @@ export class Git {
   }
 
   merge(rel: string, content: string, changeId: string, docId: string): string {
+    if (this.run(["status", "--porcelain", "--untracked-files=no"]).trim()) {
+      throw new Fail(Code.badState, "document repository has uncommitted tracked changes");
+    }
     this.ident();
     const published = this.branch();
     const branch = `dooc/chg-${changeId}`;
-    const before = fs.readFileSync(this.abs(rel));
+    const before = fs.existsSync(this.abs(rel)) ? fs.readFileSync(this.abs(rel)) : null;
     try {
       this.run(["switch", "-C", branch]);
+      fs.mkdirSync(path.dirname(this.abs(rel)), { recursive: true });
       fs.writeFileSync(this.abs(rel), content);
       this.run(["add", "--", rel]);
       this.run(["commit", "-m", `docs: update ${docId}`]);
@@ -96,7 +100,8 @@ export class Git {
       return this.run(["rev-parse", "HEAD"]).trim();
     } catch (err) {
       try {
-        fs.writeFileSync(this.abs(rel), before);
+        if (before === null) fs.rmSync(this.abs(rel), { force: true });
+        else fs.writeFileSync(this.abs(rel), before);
       } catch {
         /* restore best effort */
       }

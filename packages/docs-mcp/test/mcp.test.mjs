@@ -220,3 +220,76 @@ describe("mcp stdio", () => {
     svc.close();
   });
 });
+
+it("practices conversation-driven import, annotation revision and plan implementation", async () => {
+  const box = fresh();
+  const cli = open(box.repo, box.db);
+  const human = new Svc(box.repo, box.db);
+  const call = async (name, args = {}, fails = false) => {
+    const response = await cli.send("tools/call", { name, arguments: args });
+    const result = response.result;
+    assert.equal(Boolean(result.isError), fails, JSON.stringify(result));
+    return JSON.parse(result.content[0].text);
+  };
+  try {
+    await cli.boot();
+    // The external CLI reads the code itself; Dooc receives the resulting document.
+    fs.mkdirSync(path.join(box.repo, "src"));
+    fs.writeFileSync(path.join(box.repo, "src", "example.mjs"), "export const limit = 1;\n");
+    const code = fs.readFileSync(path.join(box.repo, "src", "example.mjs"), "utf8");
+    assert.match(code, /limit = 1/);
+    const original = (await call("docs_get", { doc_id: fixtureId })).markdown;
+    const id = "analysis.current-code";
+    const markdown = original.replace(fixtureId, id) + "\n## 实施方案\n\n将 limit 从 1 改为 2。\n";
+    const created = await call("docs_propose_create", { doc_id: id, path: "docs/analysis/current-code.md", markdown, reason: "分析当前代码仓并写入Dooc" });
+    assert.equal(fs.existsSync(path.join(box.repo, created.path)), false);
+    assert.equal((await call("docs_validate", { change_id: created.change_id })).ok, true);
+    assert.equal((await call("docs_submit_change", { change_id: created.change_id })).status, "awaiting_review");
+    await call("docs_approve", { change_id: created.change_id }, true);
+    assert.throws(() => human.approve(created.change_id, "agent", "cli"), /agent cannot approve/);
+    human.approve(created.change_id, "user", "reviewer");
+    const doc = await call("docs_get", { doc_id: id });
+    assert.equal(doc.markdown, markdown);
+    assert.ok((await call("docs_list")).documents.some(item => item.id === id || item.doc_id === id));
+    assert.equal((await call("docs_get_change", { change_id: created.change_id })).status, "merged");
+    const note = await call("comments_create", { doc_id: id, anchor: { heading: "实施方案", quote: "将 limit 从 1 改为 2。", occurrence: 1 }, content: "请补充验证方式，并按这版方案实施。" });
+    await call("comments_update_status", { comment_id: note.id, status: "in_progress" });
+    const next = markdown + "\n验证：导入模块并断言 limit 等于 2。\n";
+    const rows = markdown.trimEnd().split("\n");
+    const patch = `--- a/${created.path}\n+++ b/${created.path}\n@@ -1,${rows.length} +1,${rows.length + 2} @@\n${rows.map(line => ` ${line}`).join("\n")}\n+\n+验证：导入模块并断言 limit 等于 2。\n`;
+    await call("docs_propose_edit", { doc_id: id, base_sha: "obsolete", patch, reason: "过期基线" }, true);
+    const change = await call("docs_propose_edit", { doc_id: id, base_sha: doc.version_sha, patch, reason: "按批注补充验证" });
+    assert.equal((await call("docs_validate", { change_id: change.change_id })).ok, true);
+    await call("docs_submit_change", { change_id: change.change_id });
+    await call("comments_reply", { comment_id: note.id, content: `已核对代码并补充验证方式，提议 ${change.change_id} 等待审核。` });
+    assert.equal((await call("comments_get", { comment_id: note.id })).status, "in_progress");
+    assert.ok((await call("docs_list_changes", { doc_id: id, status: "awaiting_review" })).changes.some(item => item.change_id === change.change_id));
+    human.approve(change.change_id, "user", "reviewer");
+    const plan = await call("docs_get", { doc_id: id });
+    assert.equal(plan.markdown, next);
+    // Explicit user instruction authorizes this external CLI action, not an MCP code runner.
+    const task = await call("tasks_create", { title: "实施当前方案", description: `doc_id=${id}\nversion_sha=${plan.version_sha}\ncomment_id=${note.id}\nrepository=${box.repo}` });
+    await call("tasks_update", { task_id: task.task_id, status: "in_progress" });
+    assert.equal((await call("docs_get", { doc_id: id })).version_sha, plan.version_sha);
+    fs.writeFileSync(path.join(box.repo, "src", "example.mjs"), code.replace("limit = 1", "limit = 2"));
+    const implemented = await import(`file://${path.join(box.repo, "src", "example.mjs")}`);
+    assert.equal(implemented.limit, 2);
+    await call("comments_reply", { comment_id: note.id, content: `已实施 ${id}@${plan.version_sha}；src/example.mjs 的 limit=2，模块导入断言通过。` });
+    await call("tasks_update", { task_id: task.task_id, status: "done" });
+    await call("comments_update_status", { comment_id: note.id, status: "resolved" });
+    assert.equal((await call("tasks_get", { task_id: task.task_id })).status, "done");
+    // Duplicate paths/IDs and traversal cannot create or overwrite documents.
+    await call("docs_propose_create", { doc_id: id, path: created.path, markdown, reason: "duplicate" }, true);
+    await call("docs_propose_create", { doc_id: "new", path: "docs/../../escape.md", markdown, reason: "escape" }, true);
+    const outdated = await call("docs_propose_edit", { doc_id: id, base_sha: doc.version_sha, patch, reason: "stale example" }, true);
+    assert.equal(outdated.error.code, "stale");
+    const pending = await call("docs_propose_create", { doc_id: "analysis.pending", path: "docs/analysis/pending.md", markdown: markdown.replace(id, "analysis.pending"), reason: "new draft" });
+    fs.writeFileSync(path.join(box.repo, "docs/analysis/pending.md"), "occupied");
+    const occupied = await call("docs_validate", { change_id: pending.change_id }, true);
+    assert.equal(occupied.error.code, "stale");
+  } finally {
+    await cli.close();
+    human.close();
+    fs.rmSync(box.repo, { recursive: true, force: true });
+  }
+});

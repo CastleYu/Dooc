@@ -80,7 +80,7 @@ function python(file, expectId) {
   const args = [py, file];
   if (expectId) args.push("--expect-id", expectId);
   try {
-    const out = execFileSync("python", args, { encoding: "utf8" });
+    const out = execFileSync("python3", args, { encoding: "utf8" });
     return { code: 0, out: out.trim() };
   } catch (err) {
     return { code: err.status ?? 1, out: String(err.stdout ?? "").trim() };
@@ -163,6 +163,37 @@ describe("collaboration", () => {
     const rebound = await call(box, "POST", `/api/comments/${created.json.id}/rebind`, {});
     assert.equal(rebound.json.anchor.state, "orphaned");
     assert.equal(rebound.json.anchor.heading, heading);
+  });
+
+  it("orphans duplicate text after the document version changes", async () => {
+    const box = fresh();
+    open.push(box);
+    await listen(box);
+    const abs = fileOf(box.repo);
+    const sentence = "共同句";
+    fs.appendFileSync(abs, `\n## 重复句回归\n\n第一段：${sentence}。\n\n第二段：${sentence}。\n`);
+    box.svc.reindex();
+    const anchors = await call(box, "GET", `/api/docs/${fixtureId}/anchors`);
+    const created = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId,
+      version_sha: anchors.json.version_sha,
+      anchor: { heading: "重复句回归", quote: sentence, occurrence: 1 },
+      content: "第一处批注",
+    });
+    assert.equal(created.status, 200);
+    const refreshed = await call(box, "GET", `/api/comments?doc_id=${fixtureId}`);
+    assert.equal(refreshed.json.comments.find((item) => item.id === created.json.id).anchor.state, "bound");
+
+    let markdown = fs.readFileSync(abs, "utf8");
+    const first = markdown.indexOf(`第一段：${sentence}。`);
+    markdown = markdown.slice(0, first) + markdown.slice(first + `第一段：${sentence}。\n\n`.length);
+    fs.writeFileSync(abs, markdown);
+    box.svc.reindex();
+    const listed = await call(box, "GET", `/api/comments?doc_id=${fixtureId}`);
+    assert.equal(listed.json.comments.find((item) => item.id === created.json.id).anchor.state, "orphaned");
+    const rebound = await call(box, "POST", `/api/comments/${created.json.id}/rebind`, {});
+    assert.equal(rebound.json.anchor.state, "orphaned");
+    assert.equal(rebound.json.content, "第一处批注");
   });
 
   it("searches title and body and misses an unrelated query", async () => {
@@ -377,6 +408,118 @@ describe("collaboration", () => {
     assert.equal(created.status, 200);
     assert.equal(created.json.anchor.state, "bound");
     assert.equal(created.json.anchor.occurrence, 2);
+  });
+
+  it("maps rendered inline text and the second repeated selection to exact Markdown", async () => {
+    const box = fresh();
+    open.push(box);
+    await listen(box);
+    const abs = fileOf(box.repo);
+    const extra = "\n## 选区示例\n\n第一次 **共同文字** 与 [链接文字](https://example.test)。\n第二次 **共同文字** 与 `code`。\n\n- 列表 *斜体* &amp; 文本\n";
+    fs.appendFileSync(abs, extra);
+    const result = await call(box, "GET", `/api/docs/${fixtureId}/anchors`);
+    assert.equal(result.status, 200);
+    const doc = result.json;
+    const block = doc.blocks.find((item) => item.heading === "选区示例");
+    assert.equal(block.text, "第一次 共同文字 与 链接文字。 第二次 共同文字 与 code。");
+    assert.equal(block.starts.length, block.text.length);
+    assert.equal(block.ends.length, block.text.length);
+    assert.equal(doc.blocks.at(-1).text, "列表 斜体 & 文本");
+    const begin = block.text.lastIndexOf("共同文字");
+    const end = begin + "共同文字".length;
+    const raw = doc.markdown.slice(block.starts[begin], block.ends[end - 1]);
+    assert.equal(raw, "共同文字");
+    const section = doc.markdown.slice(block.section_start);
+    let occurrence = 0;
+    let offset = -raw.length;
+    do { offset = section.indexOf(raw, offset + raw.length); occurrence++; }
+    while (offset >= 0 && offset + block.section_start < block.starts[begin]);
+    assert.equal(occurrence, 2);
+    const created = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId, version_sha: doc.version_sha,
+      anchor: { heading: block.heading, quote: raw, occurrence }, content: "第二处批注",
+    });
+    assert.equal(created.status, 200);
+    const list = await call(box, "GET", `/api/comments?doc_id=${fixtureId}`);
+    assert.equal(list.json.comments[0].anchor.occurrence, 2);
+    const spanStart = block.text.indexOf("共同文字");
+    const spanEnd = block.text.indexOf("链接文字") + "链接文字".length;
+    const spanQuote = doc.markdown.slice(block.starts[spanStart], block.ends[spanEnd - 1]);
+    assert.equal(spanQuote, "共同文字** 与 [链接文字");
+    const formatted = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId, version_sha: doc.version_sha,
+      anchor: { heading: block.heading, quote: spanQuote, occurrence: 1 }, content: "格式选区",
+    });
+    assert.equal(formatted.status, 200);
+    fs.appendFileSync(abs, "\n文档已变化。\n");
+    const stale = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId, version_sha: doc.version_sha,
+      anchor: { heading: block.heading, quote: raw, occurrence: 2 }, content: "旧选区",
+    });
+    assert.equal(stale.status, 400);
+    assert.equal(stale.json.error.code, "stale");
+  });
+
+  it("skips GFM tables while preserving following paragraph source offsets", async () => {
+    const box = fresh();
+    open.push(box);
+    await listen(box);
+    const abs = fileOf(box.repo);
+    fs.appendFileSync(abs, "\n## 表格映射\n\n表格前段。\n\n名称 | 值\n:--- | ---:\n甲 | 数据\n\n表格后段含单独竖线 | 仍是普通文字。\n");
+    const result = await call(box, "GET", `/api/docs/${fixtureId}/anchors`);
+    const doc = result.json;
+    const blocks = doc.blocks.filter((item) => item.heading === "表格映射");
+    assert.deepEqual(blocks.map((item) => item.text), ["表格前段。", "表格后段含单独竖线 | 仍是普通文字。"]);
+    const block = blocks[1];
+    const quote = "表格后段";
+    const start = block.text.indexOf(quote);
+    const raw = doc.markdown.slice(block.starts[start], block.ends[start + quote.length - 1]);
+    assert.equal(raw, quote);
+    assert.ok(block.starts[start] > doc.markdown.indexOf("甲 | 数据"));
+    const created = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId, version_sha: doc.version_sha,
+      anchor: { heading: block.heading, quote: raw, occurrence: 1 }, content: "表格后的批注",
+    });
+    assert.equal(created.status, 200);
+    assert.equal(created.json.anchor.quote, quote);
+  });
+
+  it("rejects ambiguous duplicate headings and preserves CRLF source spans", async () => {
+    const box = fresh();
+    open.push(box);
+    await listen(box);
+    const abs = fileOf(box.repo);
+    const original = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId, anchor: { heading, quote, occurrence: 1 }, content: "已有批注",
+    });
+    assert.equal(original.status, 200);
+    fs.appendFileSync(abs, `\n## ${heading}\n\n同名标题中的${quote}。\n`);
+    const listed = await call(box, "GET", `/api/comments?doc_id=${fixtureId}`);
+    assert.equal(listed.json.comments[0].anchor.state, "orphaned");
+    const ambiguous = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId, anchor: { heading, quote, occurrence: 1 }, content: "不能选第一处",
+    });
+    assert.equal(ambiguous.status, 400);
+    assert.equal(ambiguous.json.error.code, "bad_anchor");
+    let text = fs.readFileSync(abs, "utf8") + "\n## CRLF\n\n跨行 **加粗**\n继续文字。\n";
+    text = text.replace(/\r?\n/g, "\r\n");
+    fs.writeFileSync(abs, text);
+    const result = await call(box, "GET", `/api/docs/${fixtureId}/anchors`);
+    assert.equal(result.json.blocks.some((block) => block.heading === heading), false);
+    const block = result.json.blocks.find((item) => item.heading === "CRLF");
+    assert.equal(block.text, "跨行 加粗 继续文字。");
+    const a = block.text.indexOf("加粗");
+    const b = block.text.indexOf("文字") + 2;
+    const raw = result.json.markdown.slice(block.starts[a], block.ends[b - 1]);
+    assert.equal(raw, "加粗**\r\n继续文字");
+    const created = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId, anchor: { heading: "CRLF", quote: raw, occurrence: 1 }, content: "换行选区",
+    });
+    assert.equal(created.status, 200);
+    const empty = await call(box, "POST", "/api/comments", {
+      doc_id: fixtureId, anchor: { heading: "CRLF", quote: raw, occurrence: 1 }, content: "   ",
+    });
+    assert.equal(empty.status, 400);
   });
 
   it("keeps a reply to a reply on the root thread", async () => {

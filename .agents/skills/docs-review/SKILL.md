@@ -1,26 +1,19 @@
 ---
 name: docs-review
-description: 指导外部 Agent CLI 审核文档提议、批注处理和发布前检查，自己不合并已发布分支。
+description: 分析 Dooc 文档批注或提议，按需修订、补充、回复或为其他任务添加批注。
 ---
 
-# 审核文档
+# 处理文档批注与提议
 
-审核是阅读加判断。你不发布文档。
+先用 `docs_list` 或 `docs_search` 找到相关文档，用 `comments_list({doc_id, status:"open"})` 读取待处理批注，恢复处理中工作时也读取 `in_progress`；用 `docs_list_changes` 找到相关提议；用 `docs_get`、`comments_get`、`docs_get_change` 读取正文、完整线程和提议差异。需要定位时使用 `docs_get_outline`。批注锚点要核对 `heading`、`quote`、`occurrence`；引用已失效就说明 orphaned，不要挪到别处。
 
-## 何时搜索
+判断用户所需动作：
 
-审核一开始就搜索相关文档和打开的批注。用 `docs_search`、`comments_list` 和 `docs_get_history`。只把相关命中放进上下文。
+- 只需答复时用 `comments_reply({comment_id, content})`，准确回应问题或说明待办。
+- 需要修正文档时，先阅读最新文档及 `version_sha`，按 `docs-write` 流程提交编辑提议、验证并提交审核。
+- 需要补充一个尚不存在的文档时，按 `docs-write` 用 `docs_propose_create`。
+- 用户要给另一项任务留下批注时，先读目标文档，选取确实存在的原文锚点，再用 `comments_create`。
 
-## 如何锚定批注
+处理后才更新批注状态：可从 `open` 进入 `in_progress` 或 `dismissed`，从 `in_progress` 进入 `resolved` 或 `dismissed`；遵从工具校验的合法边。提议已提交只代表等待人工审核；只有用户确认交付已完成后，才可把批注标记为 `resolved`。不得批准或合并提议。
 
-核对每条批注的 heading、quote、occurrence。引用已经对不上当前正文时，重新绑定；结果若是 orphaned，就在线程里说明，不要把锚点挪到另一段。
-
-回复用 `comments_reply`。状态只沿 open → in_progress → resolved 前进，或从 open、in_progress 进入 dismissed。其他跳跃要拒绝。
-
-## 提议而不是发布
-
-对待审核的 change 调用 `docs_get_diff` 和 `docs_validate`。`id` 被删除或改写、`type` 不在允许集合内时，验证必须失败。
-
-验证通过后，仍不要合并。告诉用户去批准。MCP 不提供批准或合并工具。在人批准之前，已发布文件的哈希保持不变。
-
-用你自己的仓库工具核对 `code_refs`，不要假设文档服务读过代码。
+回复应说明已完成的实际动作及关联 `change_id`。无法执行时说明原因与下一步，不把提议状态写成已发布。

@@ -8,7 +8,7 @@ import { FmRules } from "./fm.js";
 import { Git } from "./git.js";
 import { Actor, Ann, Chg, Code, Need, TaskSt } from "./keys.js";
 import { Patch } from "./patch.js";
-import { Anchor, Jump } from "./rules.js";
+import { Anchor, Jump, Paths, Selection } from "./rules.js";
 
 type Doc = {
   id: string;
@@ -168,6 +168,11 @@ export class Svc {
     };
   }
 
+  anchors(id: string): Record<string, unknown> {
+    const doc = this.doc(id);
+    return { doc_id: id, version_sha: this.git.blob(doc.path), markdown: doc.markdown, blocks: Selection.blocks(doc.markdown) };
+  }
+
   outline(id: string): Record<string, unknown> {
     const doc = this.doc(id);
     return { doc_id: id, headings: Anchor.headings(doc.markdown) };
@@ -209,6 +214,7 @@ export class Svc {
     heading: string;
     quote: string;
     occurrence?: number;
+    versionSha?: string;
     content: string;
     authorType: string;
     authorId: string;
@@ -217,8 +223,11 @@ export class Svc {
     if (input.authorType !== Actor.user && input.authorType !== Actor.agent) {
       throw new Fail(Code.badAnchor, "author type must be user or agent");
     }
+    if (input.versionSha !== undefined && input.versionSha !== this.git.blob(doc.path)) {
+      throw new Fail(Code.stale, "document changed since the selection was read");
+    }
     const occurrence = input.occurrence ?? 1;
-    if (!input.heading || !input.quote || !input.content) {
+    if (!input.heading || !input.quote || !input.content.trim()) {
       throw new Fail(Code.badAnchor, "heading, quote, and content are required");
     }
     const state = Anchor.bind(doc.markdown, input.heading, input.quote, occurrence);
@@ -299,9 +308,10 @@ export class Svc {
   }
 
   rebind(id: string): Record<string, unknown> {
+    this.sync();
     const row = this.noteRow(id);
     const doc = this.docs.get(row.doc_id);
-    const state = doc
+    const state = doc && row.version_sha === this.git.blob(doc.path)
       ? Anchor.bind(doc.markdown, row.heading, row.quote, row.occurrence)
       : Ann.orphaned;
     const now = new Date().toISOString();
@@ -326,6 +336,7 @@ export class Svc {
   }
 
   note(id: string): Record<string, unknown> {
+    this.sync();
     return this.view(this.noteRow(id));
   }
 
@@ -366,6 +377,57 @@ export class Svc {
     return this.change(id);
   }
 
+  proposeCreate(input: { docId: string; path: string; markdown: string; reason: string; actorId: string }): Record<string, unknown> {
+    this.sync();
+    this.creationPath(input.path);
+    if (!input.docId || this.docs.has(input.docId) || fs.existsSync(this.git.abs(input.path))) {
+      throw new Fail(Code.stale, "document id or path already exists");
+    }
+    const checked = FmRules.check(input.markdown, input.docId);
+    if (!checked.ok) throw new Fail(Code.badState, checked.errors.join(","));
+    if (!input.markdown.endsWith("\n")) throw new Fail(Code.badPatch, "markdown must end with newline");
+    const lines = input.markdown.slice(0, -1).split("\n");
+    const patch = `--- /dev/null\n+++ b/${input.path}\n@@ -0,0 +1,${lines.length} @@\n${lines.map(line => `+${line}`).join("\n")}\n`;
+    const now = new Date().toISOString();
+    const id = `chg_${randomBytes(8).toString("hex")}`;
+    this.db.raw.prepare(`INSERT INTO changes
+      (id, doc_id, path, base_sha, patch, reason, actor_type, actor_id, status, merge_sha, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`).run(
+        id, input.docId, input.path, "", patch, input.reason, Actor.agent, input.actorId, Chg.proposed, now, now);
+    return this.change(id);
+  }
+
+  private creationPath(rel: string): void {
+    if (!Paths.inside(rel) || Paths.norm(rel) !== rel || path.posix.normalize(rel) !== rel || !/\.mdx?$/.test(rel)) {
+      throw new Fail(Code.path, "new document must be a Markdown path inside docs/");
+    }
+    let parent = path.dirname(this.git.abs(rel));
+    while (!fs.existsSync(parent)) parent = path.dirname(parent);
+    const real = fs.realpathSync(parent);
+    const root = fs.realpathSync(this.git.root);
+    if (real !== root && !real.startsWith(root + path.sep)) throw new Fail(Code.path, "symlink escapes repository");
+  }
+
+  changes(docId?: string, status?: string): Record<string, unknown>[] {
+    const rows = this.db.raw.prepare("SELECT id, doc_id, status FROM changes ORDER BY created_at").all() as { id: string; doc_id: string; status: string }[];
+    return rows.filter(row => (!docId || row.doc_id === docId) && (!status || row.status === status)).map(row => {
+      const { patch: _patch, ...summary } = this.change(row.id);
+      return summary;
+    });
+  }
+
+  private changeBase(row: ChangeRow): string {
+    if (row.base_sha !== "") {
+      const doc = this.doc(row.doc_id);
+      if (this.git.blob(doc.path) !== row.base_sha) throw new Fail(Code.stale, "document changed since the proposal");
+      return doc.markdown;
+    }
+    this.sync();
+    this.creationPath(row.path);
+    if (this.docs.has(row.doc_id) || fs.existsSync(this.git.abs(row.path))) throw new Fail(Code.stale, "document id or path already exists");
+    return "";
+  }
+
   diff(id: string): Record<string, unknown> {
     const row = this.changeRow(id);
     return { change_id: row.id, doc_id: row.doc_id, patch: row.patch };
@@ -374,9 +436,8 @@ export class Svc {
   check(target: { docId?: string; changeId?: string }): { ok: boolean; errors: string[] } {
     if (target.changeId) {
       const row = this.changeRow(target.changeId);
-      const doc = this.doc(row.doc_id);
-      const next = Patch.apply(doc.markdown, row.patch);
-      return FmRules.check(next, doc.id);
+      const next = Patch.apply(this.changeBase(row), row.patch);
+      return FmRules.check(next, row.doc_id);
     }
     if (target.docId) {
       const doc = this.doc(target.docId);
@@ -388,6 +449,8 @@ export class Svc {
   submit(id: string): Record<string, unknown> {
     const row = this.changeRow(id);
     if (row.status !== Chg.proposed) throw new Fail(Code.badState, "change is not proposed");
+    const checked = this.check({ changeId: id });
+    if (!checked.ok) throw new Fail(Code.badState, checked.errors.join(","));
     const now = new Date().toISOString();
     this.db.raw
       .prepare(`UPDATE changes SET status = ?, updated_at = ? WHERE id = ?`)
@@ -399,13 +462,10 @@ export class Svc {
     if (actorType !== Actor.user) throw new Fail(Code.forbidden, "agent cannot approve");
     const row = this.changeRow(id);
     if (row.status !== Chg.review) throw new Fail(Code.badState, "change is not awaiting review");
-    const doc = this.doc(row.doc_id);
-    const blob = this.git.blob(doc.path);
-    if (blob !== row.base_sha) throw new Fail(Code.stale, "document changed since the proposal");
-    const next = Patch.apply(doc.markdown, row.patch);
-    const checked = FmRules.check(next, doc.id);
+    const next = Patch.apply(this.changeBase(row), row.patch);
+    const checked = FmRules.check(next, row.doc_id);
     if (!checked.ok) throw new Fail(Code.badState, checked.errors.join(","));
-    const mergeSha = this.git.merge(doc.path, next, row.id, doc.id);
+    const mergeSha = this.git.merge(row.path, next, row.id, row.doc_id);
     const now = new Date().toISOString();
     this.db.raw
       .prepare(`UPDATE changes SET status = ?, merge_sha = ?, updated_at = ? WHERE id = ?`)
@@ -482,6 +542,10 @@ export class Svc {
   }
 
   private view(row: NoteRow): Record<string, unknown> {
+    const doc = this.docs.get(row.doc_id);
+    const state = doc && row.version_sha === this.git.blob(doc.path)
+      ? Anchor.bind(doc.markdown, row.heading, row.quote, row.occurrence)
+      : Ann.orphaned;
     const replies = this.db.raw
       .prepare(`SELECT * FROM comments WHERE parent_id = ? ORDER BY created_at`)
       .all(row.id) as NoteRow[];
@@ -492,7 +556,7 @@ export class Svc {
         heading: row.heading,
         quote: row.quote,
         occurrence: row.occurrence,
-        state: row.anchor_state,
+        state,
       },
       author: { type: row.author_type, id: row.author_id },
       content: row.content,

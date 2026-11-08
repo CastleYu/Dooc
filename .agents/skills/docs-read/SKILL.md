@@ -1,28 +1,14 @@
 ---
 name: docs-read
-description: 指导外部 Agent CLI 搜索并选取 Dooc 文档上下文，用标题、引用和出现次数理解批注锚点。
+description: 搜索并读取 Dooc 文档、版本和批注，为答疑或后续修改选取准确上下文。
 ---
 
-# 阅读文档
+# 读取 Dooc
 
-在提问或改写之前先搜索。用户给出标题、路径或批注时，用 `docs_search` 找候选，再用 `docs_get` 只打开需要的那一篇。不要把 `docs://index` 里的每篇正文都塞进上下文。
+用户询问文档内容时，先 `docs_search`，再 `docs_get` 读取相关文档。用 `docs_get_outline` 看结构，需要具体章节时再展开；`docs_get_code_refs` 只提供 frontmatter 中的路径和符号，代码要用你自己的仓库工具读取。
 
-## 何时搜索
+用户给出 `doc_id` 或批注时，用 `docs_list` 获取文档索引、`comments_list` 获取批注；再用 `docs_get` 和 `comments_get` 读取目标正文及完整线程。准备修改前先搜索同主题文档，避免重复建文。
 
-- 用户提到一个功能、符号或文档标题，而当前上下文里没有对应正文。
-- 批注指向的 `doc_id` 还不在上下文中。
-- 准备修改前，确认有没有已存在的文档，避免另写一篇重复说明。
+批注锚点由 `heading`、`quote`、`occurrence` 组成。按标题小节核对连续引用及出现次数；引用不存在时视为 orphaned，说明锚点失效，不要改挂到相似段落。
 
-搜索词用标题或正文里的原话。无关联的词不应被当成命中。
-
-## 如何选择上下文
-
-1. 先看大纲 `docs_get_outline`，只展开相关标题。
-2. 需要代码线索时调用 `docs_get_code_refs`。它只返回 frontmatter 里的 `code_refs` 和 `symbols`。
-3. 用你自己的仓库工具去读那些路径。不要要求文档服务解析代码树。
-
-## 如何锚定批注
-
-阅读批注时，锚点是 `heading`、`quote` 和 `occurrence`。不要把行号当作唯一定位。引用文本从对应标题的小节里计数。小节里找不到这句引用时，锚点是 orphaned，不要改挂到别的段落。
-
-正式修改要走提议，而不是直接发布。
+文档及提议版本可用 `docs_get_change({change_id})`、`docs_list_changes({doc_id})` 查阅。文档系统不会解析代码仓；只把相关上下文带入当前 CLI。

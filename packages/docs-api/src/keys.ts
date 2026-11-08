@@ -97,6 +97,10 @@ export class Tree {
 }
 
 export class Tool {
+  static list = "docs_list";
+  static create = "docs_propose_create";
+  static change = "docs_get_change";
+  static changes = "docs_list_changes";
   static search = "docs_search";
   static get = "docs_get";
   static outline = "docs_get_outline";
@@ -117,6 +121,10 @@ export class Tool {
   static task = "tasks_get";
   static moveTask = "tasks_update";
   static all = [
+    Tool.list,
+    Tool.create,
+    Tool.change,
+    Tool.changes,
     Tool.search,
     Tool.get,
     Tool.outline,
@@ -161,10 +169,11 @@ export class Res {
 }
 
 export class Prompt {
+  static implement = "implement-document-plan";
   static code = "analyze-code-to-docs";
   static review = "review-document";
   static comment = "process-comment";
   static update = "update-document";
   static design = "generate-design-document";
-  static all = [Prompt.code, Prompt.review, Prompt.comment, Prompt.update, Prompt.design];
+  static all = [Prompt.implement, Prompt.code, Prompt.review, Prompt.comment, Prompt.update, Prompt.design];
 }

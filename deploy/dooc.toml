@@ -1,0 +1,17 @@
+bnp = "v1"
+id = "dooc"
+name = "Dooc"
+description = "Markdown documentation and collaboration"
+tags = ["docs", "development"]
+
+[runtime]
+kind = "systemd"
+ref = "dooc.service"
+
+[endpoint]
+base = "http://192.168.3.23:8788"
+timeout = 3
+
+[[entries]]
+name = "Dooc"
+url = "http://192.168.3.23:8788/"

@@ -13,7 +13,7 @@ node packages/docs-api/dist/cli.js --repo . --db .dooc/collab.db --port 8787
 node packages/docs-mcp/dist/stdio.js --repo . --db .dooc/collab.db
 ```
 
-生产页面通过同源 `/api/` 访问协作接口，不改 Markdown；本地独立 API 示例端口为 `8787`。Agent 通过 MCP 提议修改；人批准后才会合并进当前 Git 分支。
+生产页面通过同源 `/api/` 访问协作接口。已链接目录可以直接改文件，文档站编辑会先锁文件，冲突时保留磁盘内容。需要审核时仍可提交提议，人批准后才合并进当前 Git 分支。本地独立 API 示例端口为 `8787`。
 
 
 ## 对话驱动的协作

@@ -84,6 +84,7 @@ export class Code {
   static forbidden = "forbidden";
   static notFound = "not_found";
   static badAnchor = "bad_anchor";
+  static locked = "locked";
 }
 
 export class Hdr {
@@ -120,6 +121,14 @@ export class Tool {
   static tasks = "tasks_list";
   static task = "tasks_get";
   static moveTask = "tasks_update";
+  static linkList = "docs_link_list";
+  static linkAdd = "docs_link_add";
+  static linkRemove = "docs_link_remove";
+  static browse = "docs_browse";
+  static lock = "docs_lock";
+  static write = "docs_write";
+  static unlock = "docs_unlock";
+  static plant = "docs_render_plantuml";
   static all = [
     Tool.list,
     Tool.create,
@@ -144,6 +153,14 @@ export class Tool {
     Tool.tasks,
     Tool.task,
     Tool.moveTask,
+    Tool.linkList,
+    Tool.linkAdd,
+    Tool.linkRemove,
+    Tool.browse,
+    Tool.lock,
+    Tool.write,
+    Tool.unlock,
+    Tool.plant,
   ];
 }
 

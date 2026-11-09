@@ -10,6 +10,8 @@
   "dependencies": {
     "@rspress/core": "^2.0.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "marked": "^15.0.0",
+    "mermaid": "^11.0.0"
   }
 }

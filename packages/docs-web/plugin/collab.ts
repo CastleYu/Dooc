@@ -8,7 +8,11 @@ export function pluginCollab(): RspressPlugin {
   return {
     name: "dooc-collab",
     globalStyles: path.join(dir, "dock.css"),
-    globalUIComponents: [path.join(dir, "Dock.tsx")],
+    globalUIComponents: [
+      path.join(dir, "Dock.tsx"),
+      path.join(dir, "RichBlocks.tsx"),
+      path.join(dir, "Library.tsx"),
+    ],
     async afterBuild() {
       const out = path.join(dir, "..", "doc_build");
       fs.mkdirSync(out, { recursive: true });

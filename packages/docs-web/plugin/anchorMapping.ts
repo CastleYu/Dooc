@@ -35,6 +35,13 @@ export function toDocRect(
  * Compare two DOM points (node, offset) in document order.
  * Returns -1 if pointA is before pointB, 1 if pointA is after pointB, 0 if equal.
  */
+function childIndex(ancestor: Node, node: Node): number {
+  let current: Node | null = node;
+  while (current && current.parentNode !== ancestor) current = current.parentNode;
+  if (!current) return -1;
+  return Array.prototype.indexOf.call(ancestor.childNodes, current);
+}
+
 export function comparePoints(
   nodeA: Node,
   offsetA: number,
@@ -46,9 +53,19 @@ export function comparePoints(
   }
   const pos = nodeA.compareDocumentPosition(nodeB);
   if (pos & Node.DOCUMENT_POSITION_FOLLOWING) {
+    if (pos & Node.DOCUMENT_POSITION_CONTAINED_BY) {
+      const index = childIndex(nodeA, nodeB);
+      if (index < 0) return -1;
+      return offsetA <= index ? -1 : 1;
+    }
     return -1;
   }
   if (pos & Node.DOCUMENT_POSITION_PRECEDING) {
+    if (pos & Node.DOCUMENT_POSITION_CONTAINS) {
+      const index = childIndex(nodeB, nodeA);
+      if (index < 0) return 1;
+      return offsetB <= index ? 1 : -1;
+    }
     return 1;
   }
   return 0;
@@ -67,6 +84,27 @@ export function isCharInRange(
   const isAfterStart =
     comparePoints(node, offset + 1, range.startContainer, range.startOffset) > 0;
   return isBeforeEnd && isAfterStart;
+}
+
+export function pointInSelection(pt: DomCharPoint, range: Range): boolean {
+  if (pt.gap) {
+    try {
+      return range.intersectsNode(pt.gap);
+    } catch {
+      return false;
+    }
+  }
+  return isCharInRange(pt.node, pt.offset, range);
+}
+
+function placeRangeEdge(range: Range, pt: DomCharPoint, edge: "start" | "end"): void {
+  if (pt.gap) {
+    if (edge === "start") range.setStartBefore(pt.gap);
+    else range.setEndAfter(pt.gap);
+    return;
+  }
+  if (edge === "start") range.setStart(pt.node, pt.offset);
+  else range.setEnd(pt.node, pt.offset + 1);
 }
 
 /**
@@ -133,8 +171,8 @@ export function headingMatches(domHeading: string, blockHeading: string): boolea
  */
 export function collectBlockTextNodes(
   blockEl: HTMLElement
-): Array<{ node: Text; offset: number; char: string }> {
-  const rawChars: Array<{ node: Text; offset: number; char: string }> = [];
+): Array<{ node: Text; offset: number; char: string; gap?: HTMLElement }> {
+  const rawChars: Array<{ node: Text; offset: number; char: string; gap?: HTMLElement }> = [];
 
   function walk(node: Node) {
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -146,6 +184,15 @@ export function collectBlockTextNodes(
         el.classList.contains("header-anchor") ||
         el.tagName === "BUTTON"
       ) {
+        return;
+      }
+      if (el.tagName === "BR") {
+        rawChars.push({
+          node: el.ownerDocument.createTextNode(" "),
+          offset: 0,
+          char: " ",
+          gap: el,
+        });
         return;
       }
     }
@@ -185,7 +232,7 @@ export function buildDomMappingForBlock(
   targetText: string
 ): DomCharPoint[] | null {
   const rawChars = collectBlockTextNodes(blockEl);
-  const domChars: Array<{ node: Text; offset: number; char: string }> = [];
+  const domChars: Array<{ node: Text; offset: number; char: string; gap?: HTMLElement }> = [];
 
   let inSpace = false;
   for (const rc of rawChars) {
@@ -214,12 +261,12 @@ export function buildDomMappingForBlock(
 
   const extracted = domChars.map((c) => c.char).join("");
   if (extracted === targetText) {
-    return domChars.map((c) => ({ node: c.node, offset: c.offset }));
+    return domChars.map((c) => ({ node: c.node, offset: c.offset, gap: c.gap }));
   }
 
   // Fallback: match without whitespace differences or slight differences
   if (extracted.trim() === targetText.trim() && domChars.length === targetText.length) {
-    return domChars.map((c) => ({ node: c.node, offset: c.offset }));
+    return domChars.map((c) => ({ node: c.node, offset: c.offset, gap: c.gap }));
   }
 
   return null;
@@ -352,57 +399,56 @@ export function extractSelectionFromDOM(
     return { success: false, reason: "选区为空" };
   }
 
-  const startBlock = findEnclosingBlock(range.startContainer);
-  const endBlock = findEnclosingBlock(range.endContainer);
-
-  if (!startBlock || !endBlock) {
-    return { success: false, reason: "请在正文段落内选择文字" };
-  }
-
-  if (startBlock !== endBlock) {
-    return { success: false, reason: "请在同一段落内选择文字" };
-  }
-
-  const aligned = alignedBlocks.get(startBlock);
-  if (!aligned) {
-    return { success: false, reason: "当前段落暂不支持批注" };
-  }
-
-  const { block, domMapping } = aligned;
-
-  if (duplicateHeadings.has(block.heading)) {
-    return { success: false, reason: "文档存在同名标题，无法唯一定位" };
-  }
-
-  let firstIndex = -1;
-  let lastIndex = -1;
-
-  for (let i = 0; i < domMapping.length; i++) {
-    const pt = domMapping[i];
-    if (isCharInRange(pt.node, pt.offset, range)) {
-      if (firstIndex === -1) {
-        firstIndex = i;
-      }
-      lastIndex = i;
+  const hits: Array<{ el: HTMLElement; info: AlignedBlockInfo }> = [];
+  for (const [el, info] of alignedBlocks) {
+    try {
+      if (range.intersectsNode(el)) hits.push({ el, info });
+    } catch {
+      /* detached node */
     }
   }
 
-  if (firstIndex === -1 || lastIndex === -1 || firstIndex > lastIndex) {
+  if (hits.length === 0) {
+    return { success: false, reason: "请在正文段落内选择文字" };
+  }
+
+  const heading = hits[0].info.block.heading;
+  if (hits.some((hit) => hit.info.block.heading !== heading)) {
+    return { success: false, reason: "请在同一标题下选择文字" };
+  }
+  if (duplicateHeadings.has(heading)) {
+    return { success: false, reason: "文档存在同名标题，无法唯一定位" };
+  }
+
+  let sourceStart = Number.POSITIVE_INFINITY;
+  let sourceEnd = -1;
+  let visibleText = "";
+  let sectionStart = hits[0].info.block.section_start;
+  for (const hit of hits) {
+    const { block, domMapping } = hit.info;
+    sectionStart = Math.min(sectionStart, block.section_start);
+    for (let i = 0; i < domMapping.length; i++) {
+      const pt = domMapping[i];
+      if (!pt || !pointInSelection(pt, range)) continue;
+      sourceStart = Math.min(sourceStart, block.starts[i]);
+      sourceEnd = Math.max(sourceEnd, block.ends[i]);
+      visibleText += block.text[i] ?? "";
+    }
+  }
+
+  if (!Number.isFinite(sourceStart) || sourceEnd < sourceStart) {
     return { success: false, reason: "选区未包含有效正文字符" };
   }
 
-  const a = firstIndex;
-  const b = lastIndex + 1;
-
-  const rawQuote = anchors.markdown.slice(block.starts[a], block.ends[b - 1]);
+  const rawQuote = anchors.markdown.slice(sourceStart, sourceEnd);
   if (!rawQuote) {
     return { success: false, reason: "选区为空" };
   }
 
   const occRes = calculateOccurrence(
     anchors.markdown,
-    block.section_start,
-    block.starts[a],
+    sectionStart,
+    sourceStart,
     rawQuote
   );
 
@@ -413,17 +459,27 @@ export function extractSelectionFromDOM(
   const scrollX = typeof window !== "undefined" ? window.scrollX || window.pageXOffset : 0;
   const scrollY = typeof window !== "undefined" ? window.scrollY || window.pageYOffset : 0;
   const rect = toDocRect(range.getBoundingClientRect(), scrollX, scrollY);
-  const visibleText = block.text.slice(a, b);
+  const rects = Array.from(range.getClientRects());
+  const last = rects.length > 0 ? rects[rects.length - 1] : range.getBoundingClientRect();
+  const buttonWidth = 72;
+  let buttonLeft = last.right + scrollX + 8;
+  let buttonTop = last.top + scrollY;
+  if (last.right + 8 + buttonWidth > window.innerWidth) {
+    buttonLeft = last.left + scrollX;
+    buttonTop = last.bottom + scrollY + 6;
+  }
 
   return {
     success: true,
     pending: {
-      heading: block.heading,
+      heading,
       quote: rawQuote,
       occurrence: occRes.occurrence,
       version_sha: anchors.version_sha,
       rect,
-      blockEl: startBlock,
+      buttonTop,
+      buttonLeft,
+      blockEl: hits[0].el,
       text: visibleText,
     },
   };
@@ -514,8 +570,8 @@ export function reverseMapAnchor(
     if (a !== -1 && bEnd > a && domMapping[a] && domMapping[bEnd - 1]) {
       try {
         const range = document.createRange();
-        range.setStart(domMapping[a].node, domMapping[a].offset);
-        range.setEnd(domMapping[bEnd - 1].node, domMapping[bEnd - 1].offset + 1);
+        placeRangeEdge(range, domMapping[a], "start");
+        placeRangeEdge(range, domMapping[bEnd - 1], "end");
 
         const scrollX = typeof window !== "undefined" ? window.scrollX || window.pageXOffset : 0;
         const scrollY = typeof window !== "undefined" ? window.scrollY || window.pageYOffset : 0;
@@ -530,6 +586,33 @@ export function reverseMapAnchor(
       } catch {
         continue;
       }
+    }
+  }
+
+  const spanned: Array<{ pt: DomCharPoint; start: number }> = [];
+  for (const { block, domMapping } of alignedBlocks.values()) {
+    if (block.heading !== anchor.heading) continue;
+    for (let i = 0; i < block.starts.length; i++) {
+      if (block.ends[i] <= matchStart || block.starts[i] >= matchEnd) continue;
+      if (!domMapping[i]) continue;
+      spanned.push({ pt: domMapping[i], start: block.starts[i] });
+    }
+  }
+  spanned.sort((a, b) => a.start - b.start);
+  if (spanned.length > 0) {
+    try {
+      const range = document.createRange();
+      placeRangeEdge(range, spanned[0].pt, "start");
+      placeRangeEdge(range, spanned[spanned.length - 1].pt, "end");
+      const scrollX = typeof window !== "undefined" ? window.scrollX || window.pageXOffset : 0;
+      const scrollY = typeof window !== "undefined" ? window.scrollY || window.pageYOffset : 0;
+      const clientRects = Array.from(range.getClientRects()).map((r) => toDocRect(r, scrollX, scrollY));
+      const boundingRect = toDocRect(range.getBoundingClientRect(), scrollX, scrollY);
+      if (clientRects.length > 0 && boundingRect.width > 0) {
+        return { range, boundingRect, clientRects };
+      }
+    } catch {
+      return null;
     }
   }
 

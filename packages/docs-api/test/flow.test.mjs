@@ -21,6 +21,9 @@ function git(repo, args) {
 
 function copyDocs(repo) {
   fs.cpSync(path.join(workspace, "docs"), path.join(repo, "docs"), { recursive: true });
+  const fixtureDir = path.join(repo, "docs", "architecture");
+  fs.mkdirSync(fixtureDir, { recursive: true });
+  fs.copyFileSync(path.join(here, "fixture.md"), path.join(fixtureDir, "quartz-lantern.md"));
 }
 
 function fresh() {
@@ -575,5 +578,47 @@ describe("collaboration", () => {
     });
     assert.equal(merged.status, 200);
     assert.match(fs.readFileSync(fileOf(box.repo), "utf8"), /BRANCH-KEEP-77/);
+  });
+
+  it("links a directory, locks a file, and keeps the local copy on conflict", async () => {
+    const box = fresh();
+    open.push(box);
+    await listen(box);
+    const notes = fs.mkdtempSync(path.join(os.tmpdir(), "dooc-notes-"));
+    fs.writeFileSync(path.join(notes, "note.md"), "# 笔记\n\n本地原文。\n");
+    const linked = await call(box, "POST", "/api/links", { path: notes });
+    assert.equal(linked.status, 200);
+    const doc = linked.json.directories.find((item) => item.path === fs.realpathSync(notes)).documents[0];
+    assert.equal(doc.title, "笔记");
+    const locked = await call(box, "POST", `/api/docs/${doc.doc_id}/lock`, {}, { "x-actor-id": "editor" });
+    assert.equal(locked.status, 200);
+    const other = await call(box, "POST", `/api/docs/${doc.doc_id}/lock`, {}, { "x-actor-id": "other" });
+    assert.equal(other.status, 400);
+    assert.equal(other.json.error.code, "locked");
+    fs.writeFileSync(path.join(notes, "note.md"), "# 笔记\n\n磁盘新内容。\n");
+    const saved = await call(box, "POST", `/api/docs/${doc.doc_id}/content`, {
+      markdown: "# 笔记\n\n站点想覆盖。\n",
+      base_sha256: locked.json.base_sha256,
+      lock_token: locked.json.lock_token,
+    });
+    assert.equal(saved.status, 200);
+    assert.equal(saved.json.ok, false);
+    assert.equal(saved.json.kept, "local");
+    assert.match(fs.readFileSync(path.join(notes, "note.md"), "utf8"), /磁盘新内容/);
+    const again = await call(box, "POST", `/api/docs/${doc.doc_id}/lock`, {}, { "x-actor-id": "editor" });
+    const written = await call(box, "POST", `/api/docs/${doc.doc_id}/content`, {
+      markdown: "# 笔记\n\n站点写回。\n",
+      base_sha256: again.json.base_sha256,
+      lock_token: again.json.lock_token,
+    });
+    assert.equal(written.json.ok, true);
+    assert.match(fs.readFileSync(path.join(notes, "note.md"), "utf8"), /站点写回/);
+    const bare = await call(box, "POST", `/api/docs/${doc.doc_id}/content`, {
+      markdown: "# 笔记\n\n没有锁。\n",
+      base_sha256: written.json.sha256,
+      lock_token: "missing",
+    });
+    assert.equal(bare.status, 400);
+    assert.match(fs.readFileSync(path.join(notes, "note.md"), "utf8"), /站点写回/);
   });
 });

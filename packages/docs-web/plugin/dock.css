@@ -1,5 +1,141 @@
 /* Dooc Collaboration Overlay Styles */
 
+html:root {
+  --rp-outline-width: 360px;
+  --dooc-notes-width: 300px;
+}
+
+@media (width >= 1280px) {
+  .rp-doc-layout__outline {
+    margin-right: calc(var(--rp-outline-margin-right) + var(--dooc-notes-width) + 16px) !important;
+  }
+
+  .rp-doc-layout__outline-placeholder {
+    width: calc(var(--rp-outline-width) + var(--dooc-notes-width) + 16px);
+  }
+}
+
+.rp-doc-layout__doc {
+  position: relative;
+}
+
+.dooc-width-handle {
+  position: absolute;
+  top: 72px;
+  right: 8px;
+  width: 14px;
+  height: 72px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--rp-c-brand, #0095ff);
+  opacity: 0.45;
+  cursor: ew-resize;
+  z-index: 40;
+  padding: 0;
+}
+
+.dooc-width-handle:hover,
+.dooc-width-handle:focus-visible {
+  opacity: 0.9;
+}
+
+.dooc-annotate-btn {
+  border: 0;
+  border-radius: 999px;
+  background: var(--rp-c-brand, #0095ff);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  padding: 6px 12px;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);
+}
+
+.dooc-editor {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 80;
+  width: min(560px, calc(100vw - 32px));
+  background: var(--rp-c-bg, #fff);
+  border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.35));
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+  padding: 12px;
+}
+
+.dooc-editor textarea {
+  width: 100%;
+  min-height: 220px;
+  resize: vertical;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.35));
+  border-radius: 8px;
+  padding: 8px;
+  background: transparent;
+  color: inherit;
+}
+
+.dooc-editor-actions,
+.dooc-library-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dooc-render-error,
+.dooc-library-error {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(180, 40, 40, 0.08);
+  color: #9f1239;
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+
+.dooc-html-frame {
+  width: 100%;
+  min-height: 180px;
+  border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.35));
+  border-radius: 8px;
+  background: #fff;
+}
+
+.dooc-library {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.dooc-library button,
+.dooc-editor button,
+.dooc-library-trigger {
+  border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.4));
+  background: var(--rp-c-bg, #fff);
+  color: inherit;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.dooc-library ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+
+.dooc-library li + li {
+  margin-top: 4px;
+}
+
+.dooc-library textarea {
+  width: 100%;
+  min-height: 360px;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 /* Root overlay container - takes 0 layout space, does not shift document */
 .dooc-root {
   position: static;
@@ -605,82 +741,22 @@
 
 @media (width >= 1280px) {
   body.dooc-doc-active {
-    --rp-outline-width: 320px;
+    --rp-outline-width: 360px;
   }
-}
 
-/* Compact TOC handling between 1280px and 1440px to prevent card collision */
-@media (1280px <= width < 1440px) {
   body.dooc-doc-active .rp-doc-layout__outline {
-    position: relative !important;
-    display: block !important;
-    height: auto !important;
-    overflow: visible !important;
-    border-left: none !important;
-    padding-top: 8px !important;
-    pointer-events: none !important;
-  }
-
-  body.dooc-doc-active .rp-doc-layout__outline .rp-outline {
-    position: sticky !important;
-    top: calc(var(--rp-nav-height, 56px) + 8px) !important;
-    z-index: 35 !important;
-    max-height: 34px !important;
-    overflow: hidden !important;
-    border-radius: 8px !important;
-    background: var(--rp-c-bg, #ffffff) !important;
-    border: 1px solid var(--rp-c-divider, rgba(140, 149, 159, 0.25)) !important;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
-    padding: 6px 12px !important;
-    transition: max-height 0.24s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease !important;
-    cursor: pointer !important;
     pointer-events: auto !important;
   }
 
-  body.dooc-doc-active .rp-doc-layout__outline .rp-outline:hover,
-  body.dooc-doc-active .rp-doc-layout__outline .rp-outline:focus-within {
-    max-height: 60vh !important;
-    overflow-y: auto !important;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16) !important;
-  }
-
-  body.dooc-doc-active .rp-doc-layout__outline .rp-outline__divider {
-    display: none !important;
-  }
-}
-
-/* Wide viewports (>= 1440px): Dedicated empty rail for TOC on the outer right */
-@media (width >= 1440px) {
-  body.dooc-doc-active {
-    --rp-outline-width: 460px;
-  }
-
-  body.dooc-doc-active .rp-doc-layout__outline {
-    position: relative !important;
-    display: block !important;
-    height: auto !important;
-    overflow: visible !important;
-    border-left: none !important;
-    padding-top: 14px !important;
-    pointer-events: none !important;
-  }
-
   body.dooc-doc-active .rp-doc-layout__outline .rp-outline {
-    position: sticky !important;
-    top: calc(var(--rp-nav-height, 56px) + 14px) !important;
-    margin-left: 280px !important;
-    width: 170px !important;
+    width: 100% !important;
+    max-width: var(--rp-outline-width) !important;
+    margin-left: 0 !important;
     box-sizing: border-box !important;
     max-height: calc(100vh - var(--rp-nav-height, 56px) - 32px) !important;
-    overflow-y: auto !important;
     overflow-x: hidden !important;
-    border-left: 1px solid var(--rp-c-divider-light, rgba(140, 149, 159, 0.2)) !important;
-    padding: 8px 8px 16px 12px !important;
+    overflow-y: auto !important;
     pointer-events: auto !important;
-  }
-
-  body.dooc-doc-active .rp-doc-layout__outline .rp-outline__divider {
-    display: none !important;
   }
 }
 

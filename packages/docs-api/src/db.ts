@@ -49,6 +49,13 @@ export class Db {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS file_locks (
+        path TEXT PRIMARY KEY,
+        token TEXT NOT NULL,
+        owner TEXT NOT NULL,
+        base_sha TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS docs (
         doc_id TEXT PRIMARY KEY,
         title TEXT NOT NULL,

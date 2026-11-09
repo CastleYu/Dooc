@@ -21,7 +21,7 @@ import {
 import { FloatingCommentBox } from "./FloatingCommentBox";
 import { CommentMarkerLayer } from "./CommentMarkerLayer";
 import { CommentSidebar } from "./CommentSidebar";
-import { TaskPopover } from "./TaskPopover";
+import { EditorBar } from "./EditorBar";
 
 export default function Dock() {
   const page = usePageData() as { page?: { frontmatter?: { id?: string } } };
@@ -39,6 +39,8 @@ export default function Dock() {
   const [submitSubmitting, setSubmitSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [selectionTip, setSelectionTip] = useState<{
     text: string;
     rect: DOMRect;
@@ -69,6 +71,9 @@ export default function Dock() {
 
   const submitErrorRef = useRef<string | null>(null);
   submitErrorRef.current = submitError;
+  const editingRef = useRef(false);
+  editingRef.current = editing;
+  const seenVersionRef = useRef<string | null>(null);
 
   // Measure desktop track in real document space
   const measureDesktopTrack = useCallback(() => {
@@ -78,46 +83,28 @@ export default function Dock() {
     const scrollX = window.scrollX || window.pageXOffset;
     const vw = window.innerWidth;
 
+    const outlineEl =
+      (document.querySelector(".rp-doc-layout__outline") as HTMLElement) ||
+      (document.querySelector(".rp-outline") as HTMLElement);
+    if (outlineEl && outlineEl.getBoundingClientRect().width > 0 && vw >= 1280) {
+      const oRect = outlineEl.getBoundingClientRect();
+      return {
+        left: Math.round(oRect.right + 12 + scrollX),
+        width: 300,
+      };
+    }
+
     const docEl =
       (document.querySelector(".rspress-doc") as HTMLElement) ||
       (document.querySelector("article") as HTMLElement) ||
       (document.querySelector(".rp-doc-layout__doc-container") as HTMLElement);
 
-    const outlineEl =
-      (document.querySelector(".rp-doc-layout__outline") as HTMLElement) ||
-      (document.querySelector(".rp-doc-layout__outline-placeholder") as HTMLElement);
-
-    if (vw >= 1440) {
-      if (outlineEl && outlineEl.getBoundingClientRect().width > 0) {
-        const oRect = outlineEl.getBoundingClientRect();
-        return {
-          left: Math.round(oRect.left + scrollX),
-          width: 260,
-        };
-      }
-      if (docEl) {
-        const dRect = docEl.getBoundingClientRect();
-        return {
-          left: Math.round(dRect.right + 24 + scrollX),
-          width: 260,
-        };
-      }
-    } else {
-      if (outlineEl && outlineEl.getBoundingClientRect().width > 0) {
-        const oRect = outlineEl.getBoundingClientRect();
-        return {
-          left: Math.round(oRect.left + scrollX),
-          width: Math.max(260, Math.min(320, Math.round(oRect.width))),
-        };
-      }
-      if (docEl) {
-        const dRect = docEl.getBoundingClientRect();
-        const avail = vw - (dRect.right + 20);
-        return {
-          left: Math.round(dRect.right + 20 + scrollX),
-          width: Math.max(250, Math.min(310, Math.round(avail - 20))),
-        };
-      }
+    if (docEl) {
+      const dRect = docEl.getBoundingClientRect();
+      return {
+        left: Math.round(dRect.right + 16 + scrollX),
+        width: 300,
+      };
     }
 
     return { left: Math.round(vw - 330 + scrollX), width: 300 };
@@ -290,7 +277,76 @@ export default function Dock() {
   // Mounted SSR guard
   useEffect(() => {
     setMounted(true);
+    const saved = window.localStorage.getItem("dooc-content-width");
+    if (saved) document.documentElement.style.setProperty("--rp-content-max-width", saved);
+    document.documentElement.style.setProperty("--rp-outline-width", "360px");
+    document.documentElement.style.setProperty("--dooc-notes-width", "300px");
   }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    const doc = document.querySelector(".rp-doc-layout__doc") as HTMLElement | null;
+    if (!doc) return;
+    let handle = doc.querySelector(".dooc-width-handle") as HTMLButtonElement | null;
+    if (!handle) {
+      handle = document.createElement("button");
+      handle.type = "button";
+      handle.className = "dooc-width-handle";
+      handle.title = "拖动调节正文宽度";
+      handle.setAttribute("aria-label", "拖动调节正文宽度");
+      doc.appendChild(handle);
+    }
+    const onDown = (event: PointerEvent) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const current = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--rp-content-max-width")) || 1000;
+      const move = (ev: PointerEvent) => {
+        const next = Math.max(720, Math.min(1680, Math.round(current + (ev.clientX - startX) * 2)));
+        document.documentElement.style.setProperty("--rp-content-max-width", `${next}px`);
+      };
+      const up = () => {
+        const value = getComputedStyle(document.documentElement).getPropertyValue("--rp-content-max-width").trim();
+        if (value) window.localStorage.setItem("dooc-content-width", value);
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    };
+    handle.addEventListener("pointerdown", onDown);
+    return () => {
+      handle?.removeEventListener("pointerdown", onDown);
+    };
+  }, [mounted, docId]);
+
+  useEffect(() => {
+    if (!docId) return;
+    seenVersionRef.current = null;
+    const timer = window.setInterval(() => {
+      if (!editingRef.current) fetchData(docId);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [docId, fetchData]);
+
+  useEffect(() => {
+    if (!anchors || editing) return;
+    if (seenVersionRef.current === null) {
+      seenVersionRef.current = anchors.version_sha;
+      return;
+    }
+    if (seenVersionRef.current === anchors.version_sha) return;
+    seenVersionRef.current = anchors.version_sha;
+    const host = document.querySelector(".rspress-doc") as HTMLElement | null;
+    if (!host) return;
+    const body = anchors.markdown.replace(/^\uFEFF/, "").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
+    import("marked").then(({ marked }) => {
+      host.innerHTML = marked.parse(body, { async: false }) as string;
+      window.dispatchEvent(new CustomEvent("dooc-rich-render"));
+      refreshMarkers(anchors, comments);
+    }).catch(() => {
+      /* keep the built page if the renderer is unavailable */
+    });
+  }, [anchors, comments, editing, refreshMarkers]);
 
   // Portal target & TOC layout management: strictly scoped to docId with cleanup
   useEffect(() => {
@@ -406,8 +462,8 @@ export default function Dock() {
       if (!target || !(target instanceof Element)) return false;
       return Boolean(
         target.closest(".dooc-floating-box-wrapper") ||
-        target.closest(".dooc-task-container") ||
-        target.closest(".dooc-task-popover") ||
+        target.closest(".dooc-annotate-btn") ||
+        target.closest(".dooc-editor") ||
         target.closest(".dooc-detail-popover") ||
         target.closest(".dooc-sidebar") ||
         target.closest(".dooc-marker-badge") ||
@@ -432,6 +488,7 @@ export default function Dock() {
       if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
         // Only clear pending selection if no draft was typed and no retry error is active
         if (!draftRef.current.trim() && !submitErrorRef.current) {
+          setComposerOpen(false);
           setPendingSelection(null);
           pendingSelectionRef.current = null;
           pendingRangeRef.current = null;
@@ -453,6 +510,10 @@ export default function Dock() {
       );
 
       if (result.success) {
+        const prev = pendingSelectionRef.current;
+        if (!prev || prev.quote !== result.pending.quote || prev.heading !== result.pending.heading) {
+          setComposerOpen(false);
+        }
         pendingRangeRef.current = range.cloneRange();
         setPendingSelection(result.pending);
         pendingSelectionRef.current = result.pending;
@@ -463,7 +524,7 @@ export default function Dock() {
         pendingRangeRef.current = null;
         // Show short hint if user selected across paragraphs or invalid block
         if (
-          result.reason === "请在同一段落内选择文字" ||
+          result.reason === "请在同一标题下选择文字" ||
           result.reason === "文档存在同名标题，无法唯一定位" ||
           result.reason === "当前段落暂不支持批注"
         ) {
@@ -550,6 +611,7 @@ export default function Dock() {
       }
 
       // Success: close floating box, clear draft, reload comments
+      setComposerOpen(false);
       setPendingSelection(null);
       pendingSelectionRef.current = null;
       pendingRangeRef.current = null;
@@ -639,8 +701,25 @@ export default function Dock() {
         />
       )}
 
-      {/* Floating compact input box near selection */}
-      {docId && pendingSelection && (
+      {docId && pendingSelection && !composerOpen && (
+        <button
+          type="button"
+          className="dooc-annotate-btn"
+          style={{
+            position: "absolute",
+            top: `${pendingSelection.buttonTop}px`,
+            left: `${pendingSelection.buttonLeft}px`,
+            zIndex: 120,
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setComposerOpen(true)}
+        >
+          批注
+        </button>
+      )}
+
+      {/* Input opens under the selection after the button is used */}
+      {docId && pendingSelection && composerOpen && (
         <FloatingCommentBox
           pending={pendingSelection}
           submitting={submitSubmitting}
@@ -652,6 +731,7 @@ export default function Dock() {
           }}
           onSubmit={handleSubmitComment}
           onClose={() => {
+            setComposerOpen(false);
             setPendingSelection(null);
             pendingSelectionRef.current = null;
             pendingRangeRef.current = null;
@@ -704,8 +784,7 @@ export default function Dock() {
         )
       )}
 
-      {/* Independent Task Entrance */}
-      <TaskPopover />
+      {docId && <EditorBar docId={docId} active={editing} onActive={setEditing} />}
     </div>
   );
 }

@@ -4,6 +4,13 @@ import { pluginCollab } from "./plugin/collab";
 
 const root = path.join(__dirname, "..", "..", "docs");
 
+const plain = (name: string, aliases: string[] = []) => ({
+  name,
+  aliases,
+  scopeName: `source.${name.replace(/-/g, ".")}`,
+  patterns: [{ match: "[\\s\\S]+", name: "text" }],
+});
+
 export default defineConfig({
   root,
   title: "Dooc",
@@ -11,6 +18,27 @@ export default defineConfig({
   outDir: path.join(__dirname, "doc_build"),
   llms: true,
   search: {},
+  markdown: {
+    shiki: {
+      langs: [
+        "tsx",
+        "ts",
+        "js",
+        "jsx",
+        "json",
+        "bash",
+        "md",
+        "html",
+        "css",
+        "txt",
+        "text",
+        "mermaid",
+        plain("plantuml", ["puml"]),
+        plain("excalidraw"),
+        plain("html-embed"),
+      ],
+    },
+  },
   plugins: [pluginCollab()],
   builderConfig: {
     server: {
@@ -21,21 +49,18 @@ export default defineConfig({
   },
   themeConfig: {
     nav: [
-      { text: "架构", link: "/architecture/quartz-lantern" },
-      { text: "接入", link: "/guides/agent-setup" },
+      { text: "UI 组件", link: "/guide/rspress-ui" },
+      { text: "接入", link: "/guide/integration" },
+      { text: "链接文档", link: "/library" },
     ],
     sidebar: {
       "/": [
         {
           text: "文档",
           items: [
-            { text: "北档石英灯架构", link: "/architecture/quartz-lantern" },
-            { text: "批注存储", link: "/design/annotation-store" },
-            { text: "Git 作为正文来源", link: "/decisions/0001-git-as-source" },
-            { text: "协作接口", link: "/api/collaboration" },
-            { text: "接入外部 Agent", link: "/guides/agent-setup" },
-            { text: "Frontmatter 字段", link: "/reference/frontmatter" },
-            { text: "范围说明", link: "/analysis/scope" },
+            { text: "Rspress UI 组件", link: "/guide/rspress-ui" },
+            { text: "接入指南", link: "/guide/integration" },
+            { text: "链接文档", link: "/library" },
           ],
         },
       ],

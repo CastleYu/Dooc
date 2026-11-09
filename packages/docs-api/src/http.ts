@@ -63,6 +63,13 @@ export class Http {
       };
     }
     if (method === "GET" && path === "/api/docs") return { documents: this.svc.index() };
+    if (method === "GET" && path === "/api/links") return this.svc.listLinks();
+    if (method === "POST" && path === "/api/links") return this.svc.addLink(String(body.path ?? ""));
+    if (method === "DELETE" && path === "/api/links") {
+      return this.svc.removeLink(String(body.path ?? url.searchParams.get("path") ?? ""));
+    }
+    if (method === "GET" && path === "/api/browse") return this.svc.browse(url.searchParams.get("path") ?? undefined);
+    if (method === "POST" && path === "/api/render/plantuml") return this.svc.renderPlant(String(body.source ?? ""));
     const doc = /^\/api\/docs\/([^/]+)$/.exec(path);
     if (doc && method === "GET") return this.svc.get(decodeURIComponent(doc[1]));
     const anchors = /^\/api\/docs\/([^/]+)\/anchors$/.exec(path);
@@ -75,6 +82,18 @@ export class Http {
     if (refs && method === "GET") return this.svc.refs(decodeURIComponent(refs[1]));
     const hist = /^\/api\/docs\/([^/]+)\/history$/.exec(path);
     if (hist && method === "GET") return this.svc.history(decodeURIComponent(hist[1]));
+    const lock = /^\/api\/docs\/([^/]+)\/lock$/.exec(path);
+    if (lock && method === "POST") return this.svc.lockDoc(decodeURIComponent(lock[1]), who.id);
+    if (lock && method === "DELETE") return this.svc.unlockDoc(decodeURIComponent(lock[1]), String(body.lock_token ?? ""));
+    const content = /^\/api\/docs\/([^/]+)\/content$/.exec(path);
+    if (content && method === "POST") {
+      return this.svc.writeDoc(
+        decodeURIComponent(content[1]),
+        String(body.markdown ?? ""),
+        String(body.base_sha256 ?? ""),
+        String(body.lock_token ?? ""),
+      );
+    }
     const docCheck = /^\/api\/docs\/([^/]+)\/validate$/.exec(path);
     if (docCheck && method === "POST") return this.svc.check({ docId: decodeURIComponent(docCheck[1]) });
     if (method === "POST" && path === "/api/comments") {

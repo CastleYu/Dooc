@@ -10,6 +10,14 @@
 - `docs_list_changes({doc_id?, status?})`、`docs_get_change({change_id})`、`docs_get_diff({change_id})`：发现提议、读取状态及完整差异。恢复时核对提议与已发布正文的区别。
 - MCP resources 也提供文档、批注、大纲、历史、任务及标准；用客户端发现可用 URI，无需为相同内容重复读取工具和资源。
 
+## 直接编辑已链接目录
+
+- `docs_browse({path?})`、`docs_link_add({path})`、`docs_link_list()`、`docs_link_remove({path})`：选定 Markdown 目录。没有 frontmatter 的文件也会进入索引。
+- 直接改目录里的文件后，下一次读取看到磁盘内容。
+- 从文档站编辑时先 `docs_lock({doc_id})`，用返回的 `lock_token` 和 `base_sha256` 调用 `docs_write({doc_id, markdown, base_sha256, lock_token})`。写完锁会释放。取消时 `docs_unlock`。
+- `docs_write` 发现 `sha256` 已变时返回 `kept: "local"` 和磁盘正文，不覆盖。
+- `docs_render_plantuml({source})` 返回 SVG 或编译器错误原文。
+
 ## 新建、修订与审核
 
 1. 已有文档：`docs_propose_edit({doc_id, patch, reason, base_sha})`，patch 是相对当前正文的 unified diff，base_sha 来自 `docs_get`。

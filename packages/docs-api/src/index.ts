@@ -16,6 +16,8 @@ export {
   TaskSt,
   Tool,
 } from "./keys.js";
+export { Links } from "./links.js";
+export { plantuml } from "./render.js";
 export { Patch } from "./patch.js";
 export { Anchor, Jump, Paths } from "./rules.js";
 export { Svc } from "./svc.js";

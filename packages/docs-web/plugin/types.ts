@@ -51,6 +51,7 @@ export interface CommentItem {
 export interface DomCharPoint {
   node: Text;
   offset: number;
+  gap?: HTMLElement;
 }
 
 export interface AlignedBlockInfo {
@@ -64,6 +65,8 @@ export interface PendingSelection {
   occurrence: number;
   version_sha: string;
   rect: DOMRect;
+  buttonTop: number;
+  buttonLeft: number;
   blockEl: HTMLElement;
   text: string;
 }

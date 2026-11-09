@@ -63,6 +63,9 @@ function fresh() {
   git(repo, ["config", "user.name", "Dooc"]);
   git(repo, ["config", "core.autocrlf", "false"]);
   fs.cpSync(path.join(workspace, "docs"), path.join(repo, "docs"), { recursive: true });
+  const fixtureDir = path.join(repo, "docs", "architecture");
+  fs.mkdirSync(fixtureDir, { recursive: true });
+  fs.copyFileSync(path.join(workspace, "packages", "docs-api", "test", "fixture.md"), path.join(fixtureDir, "quartz-lantern.md"));
   git(repo, ["add", "docs"]);
   git(repo, ["commit", "-m", "init docs"]);
   return { repo, db: path.join(repo, "collab.db") };

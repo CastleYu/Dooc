@@ -1,11 +1,18 @@
-architecture.quartz-lantern:
+guide.rspress-ui:
   code_refs:
-    - src/lantern/
+    - packages/docs-web/rspress.config.ts
+    - packages/docs-web/plugin/Dock.tsx
   symbols:
-    - QuartzLantern
-    - LanternContext
-design.annotation-store:
+    - pluginCollab
+guide.integration:
   code_refs:
-    - packages/docs-api/src/svc.ts
+    - packages/docs-api/src/links.ts
+    - packages/docs-mcp/src/stdio.ts
   symbols:
+    - Links
     - Svc
+guide.library:
+  code_refs:
+    - packages/docs-web/plugin/Library.tsx
+  symbols:
+    - Library

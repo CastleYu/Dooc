@@ -8,7 +8,7 @@ export class Std {
       "Markdown is the document body. MDX is only for a page that needs interaction.",
       "Keep the stable frontmatter id. Do not store annotations in the Markdown file.",
       `Required keys: ${[Need.id, Need.title, Need.description, Need.type, Need.status, Need.tags, Need.owners, Need.codeRefs, Need.symbols, Need.created, Need.updated].join(", ")}.`,
-      "Propose a patch. Do not publish it. A human approves before the file changes.",
+      "Linked files can be edited on disk. Site edits call docs_lock then docs_write. A sha256 mismatch keeps the local file. Proposals remain for reviewed changes.",
       "Anchor a comment with heading, quote, and occurrence. Do not use a line number as the only key.",
     ].join("\n");
   }

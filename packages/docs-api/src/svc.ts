@@ -8,6 +8,8 @@ import { FmRules } from "./fm.js";
 import { Git } from "./git.js";
 import { Actor, Ann, Chg, Code, Need, TaskSt } from "./keys.js";
 import { Patch } from "./patch.js";
+import { Links } from "./links.js";
+import { plantuml } from "./render.js";
 import { Anchor, Jump, Paths, Selection } from "./rules.js";
 
 type Doc = {
@@ -22,6 +24,8 @@ type Doc = {
   owners: string[];
   codeRefs: string[];
   symbols: string[];
+  abs: string;
+  inside: boolean;
 };
 
 export class Svc {
@@ -42,9 +46,6 @@ export class Svc {
 
   reindex(): void {
     this.docs.clear();
-    const root = path.join(this.git.root, "docs");
-    const files: string[] = [];
-    if (fs.existsSync(root)) this.walk(root, files);
     this.db.raw.exec("DELETE FROM docs");
     this.db.raw.exec("DELETE FROM docs_fts");
     const put = this.db.raw.prepare(
@@ -52,30 +53,30 @@ export class Svc {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const fts = this.db.raw.prepare(`INSERT INTO docs_fts (doc_id, title, body) VALUES (?, ?, ?)`);
-    for (const abs of files) {
-      const rel = path.relative(this.git.root, abs).split(path.sep).join("/");
-      const markdown = fs.readFileSync(abs, "utf8");
+    for (const file of this.sources()) {
+      const markdown = fs.readFileSync(file.abs, "utf8");
       const meta = Fm.read(markdown);
-      if (!meta) continue;
-      const id = meta.str(Need.id);
-      if (!id) continue;
+      const id = Svc.docId(meta, file);
       if (this.docs.has(id)) throw new Fail(Code.badState, `duplicate id ${id}`);
+      const title = meta?.str(Need.title) || Svc.headingTitle(markdown) || path.basename(file.abs).replace(/\.mdx?$/i, "");
       const doc: Doc = {
         id,
-        path: rel,
+        path: file.rel ?? file.abs,
         markdown,
-        title: meta.str(Need.title),
-        description: meta.str(Need.description),
-        type: meta.str(Need.type),
-        status: meta.str(Need.status),
-        tags: meta.list(Need.tags),
-        owners: meta.list(Need.owners),
-        codeRefs: meta.list(Need.codeRefs),
-        symbols: meta.list(Need.symbols),
+        title,
+        description: meta?.str(Need.description) ?? "",
+        type: meta?.str(Need.type) || "guide",
+        status: meta?.str(Need.status) || "reviewed",
+        tags: meta?.list(Need.tags) ?? [],
+        owners: meta?.list(Need.owners) ?? [],
+        codeRefs: meta?.list(Need.codeRefs) ?? [],
+        symbols: meta?.list(Need.symbols) ?? [],
+        abs: file.abs,
+        inside: file.rel !== null,
       };
       this.docs.set(id, doc);
-      const body = meta.body;
-      put.run(id, doc.title, doc.description, doc.type, doc.status, rel, body, JSON.stringify(meta.data));
+      const body = meta?.body ?? markdown;
+      put.run(id, doc.title, doc.description, doc.type, doc.status, doc.path, body, JSON.stringify(meta?.data ?? {}));
       fts.run(id, doc.title, body);
     }
     this.stamp = this.fingerprint();
@@ -87,23 +88,63 @@ export class Svc {
   }
 
   fingerprint(): string {
-    const root = path.join(this.git.root, "docs");
-    const files: string[] = [];
-    if (fs.existsSync(root)) this.walk(root, files);
-    files.sort();
-    const rows: string[] = [];
-    for (const abs of files) {
-      const rel = path.relative(this.git.root, abs).split(path.sep).join("/");
-      const digest = createHash("sha256").update(fs.readFileSync(abs)).digest("hex");
-      rows.push(`${rel} ${digest}`);
-    }
+    const rows = this.sources().map((file) => {
+      const digest = createHash("sha256").update(fs.readFileSync(file.abs)).digest("hex");
+      return `${file.rel ?? file.abs} ${digest}`;
+    });
+    rows.sort();
     return rows.join("\n");
   }
 
+  sources(): { abs: string; rel: string | null }[] {
+    const out: { abs: string; rel: string | null }[] = [];
+    const seen = new Set<string>();
+    const addTree = (root: string) => {
+      if (!fs.existsSync(root)) return;
+      let real: string;
+      try {
+        real = fs.realpathSync(root);
+      } catch {
+        return;
+      }
+      if (seen.has(real)) return;
+      seen.add(real);
+      const files: string[] = [];
+      this.walk(real, files);
+      const repo = fs.realpathSync(this.git.root);
+      for (const abs of files) {
+        let fileReal = abs;
+        try {
+          fileReal = fs.realpathSync(abs);
+        } catch {
+          /* use the path we walked */
+        }
+        const inside = fileReal === repo || fileReal.startsWith(repo + path.sep);
+        const rel = inside ? path.relative(this.git.root, abs).split(path.sep).join("/") : null;
+        out.push({ abs, rel });
+      }
+    };
+    addTree(path.join(this.git.root, "docs"));
+    for (const dir of Links.read(this.git.root)) addTree(dir);
+    return out;
+  }
+
   walk(dir: string, out: string[]): void {
-    for (const name of fs.readdirSync(dir)) {
+    let names: string[] = [];
+    try {
+      names = fs.readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      if (name === "node_modules" || name === ".git" || name === "dist" || name === "doc_build" || name === ".dooc") continue;
       const abs = path.join(dir, name);
-      const st = fs.statSync(abs);
+      let st: fs.Stats;
+      try {
+        st = fs.statSync(abs);
+      } catch {
+        continue;
+      }
       if (st.isDirectory()) this.walk(abs, out);
       else if (name.endsWith(".md") || name.endsWith(".mdx")) out.push(abs);
     }
@@ -163,14 +204,14 @@ export class Svc {
       code_refs: doc.codeRefs,
       symbols: doc.symbols,
       markdown: doc.markdown,
-      version_sha: this.git.blob(doc.path),
-      sha256: this.git.sha256(doc.path),
+      version_sha: this.revision(doc),
+      sha256: this.fileSha(doc),
     };
   }
 
   anchors(id: string): Record<string, unknown> {
     const doc = this.doc(id);
-    return { doc_id: id, version_sha: this.git.blob(doc.path), markdown: doc.markdown, blocks: Selection.blocks(doc.markdown) };
+    return { doc_id: id, version_sha: this.revision(doc), markdown: doc.markdown, blocks: Selection.blocks(doc.markdown) };
   }
 
   outline(id: string): Record<string, unknown> {
@@ -223,7 +264,7 @@ export class Svc {
     if (input.authorType !== Actor.user && input.authorType !== Actor.agent) {
       throw new Fail(Code.badAnchor, "author type must be user or agent");
     }
-    if (input.versionSha !== undefined && input.versionSha !== this.git.blob(doc.path)) {
+    if (input.versionSha !== undefined && input.versionSha !== this.revision(doc)) {
       throw new Fail(Code.stale, "document changed since the selection was read");
     }
     const occurrence = input.occurrence ?? 1;
@@ -252,7 +293,7 @@ export class Svc {
         input.authorId,
         input.content,
         Ann.open,
-        this.git.blob(doc.path),
+        this.revision(doc),
         now,
         now,
       );
@@ -311,7 +352,7 @@ export class Svc {
     this.sync();
     const row = this.noteRow(id);
     const doc = this.docs.get(row.doc_id);
-    const state = doc && row.version_sha === this.git.blob(doc.path)
+    const state = doc && row.version_sha === this.revision(doc)
       ? Anchor.bind(doc.markdown, row.heading, row.quote, row.occurrence)
       : Ann.orphaned;
     const now = new Date().toISOString();
@@ -349,7 +390,7 @@ export class Svc {
     actorId: string;
   }): Record<string, unknown> {
     const doc = this.doc(input.docId);
-    const blob = this.git.blob(doc.path);
+    const blob = this.revision(doc);
     if (input.baseSha !== blob) throw new Fail(Code.stale, "base sha is not the current document version");
     Patch.guard(input.patch, doc.path);
     Patch.apply(doc.markdown, input.patch);
@@ -419,7 +460,7 @@ export class Svc {
   private changeBase(row: ChangeRow): string {
     if (row.base_sha !== "") {
       const doc = this.doc(row.doc_id);
-      if (this.git.blob(doc.path) !== row.base_sha) throw new Fail(Code.stale, "document changed since the proposal");
+      if (this.revision(doc) !== row.base_sha) throw new Fail(Code.stale, "document changed since the proposal");
       return doc.markdown;
     }
     this.sync();
@@ -476,6 +517,7 @@ export class Svc {
 
   history(id: string): Record<string, unknown> {
     const doc = this.doc(id);
+    if (!doc.inside) return { doc_id: id, history: [] };
     const rows = this.git.log(doc.path).map((rev) => ({
       sha: rev.sha,
       parents: rev.parents,
@@ -543,7 +585,7 @@ export class Svc {
 
   private view(row: NoteRow): Record<string, unknown> {
     const doc = this.docs.get(row.doc_id);
-    const state = doc && row.version_sha === this.git.blob(doc.path)
+    const state = doc && row.version_sha === this.revision(doc)
       ? Anchor.bind(doc.markdown, row.heading, row.quote, row.occurrence)
       : Ann.orphaned;
     const replies = this.db.raw
@@ -571,6 +613,122 @@ export class Svc {
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
+  }
+
+  listLinks(): { directories: { path: string; documents: { doc_id: string; title: string; path: string }[] }[] } {
+    this.sync();
+    const directories = Links.read(this.git.root).map((dir) => ({
+      path: dir,
+      documents: [...this.docs.values()]
+        .filter((doc) => doc.abs === dir || doc.abs.startsWith(dir + path.sep))
+        .map((doc) => ({ doc_id: doc.id, title: doc.title, path: doc.path })),
+    }));
+    return { directories };
+  }
+
+  addLink(dir: string): { directories: { path: string; documents: { doc_id: string; title: string; path: string }[] }[] } {
+    Links.add(this.git.root, dir);
+    this.reindex();
+    return this.listLinks();
+  }
+
+  removeLink(dir: string): { directories: { path: string; documents: { doc_id: string; title: string; path: string }[] }[] } {
+    Links.remove(this.git.root, dir);
+    this.reindex();
+    return this.listLinks();
+  }
+
+  browse(dir?: string): { path: string; parent: string | null; directories: { name: string; path: string; markdown: number }[] } {
+    return Links.browse(this.git.root, dir);
+  }
+
+  lockDoc(id: string, owner: string): Record<string, unknown> {
+    const doc = this.doc(id);
+    this.expireLocks();
+    const now = Date.now();
+    const row = this.lockRow(doc.abs);
+    if (row && row.owner !== owner && Date.parse(row.expires_at) > now) {
+      throw new Fail(Code.locked, "file is locked by another editor");
+    }
+    const token = randomBytes(16).toString("hex");
+    const base = this.fileSha(doc);
+    const expires = new Date(now + 15 * 60 * 1000).toISOString();
+    this.db.raw
+      .prepare(
+        `INSERT INTO file_locks (path, token, owner, base_sha, expires_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET token = excluded.token, owner = excluded.owner, base_sha = excluded.base_sha, expires_at = excluded.expires_at`,
+      )
+      .run(doc.abs, token, owner, base, expires);
+    return { doc_id: doc.id, path: doc.abs, lock_token: token, base_sha256: base, expires_at: expires };
+  }
+
+  unlockDoc(id: string, token: string): Record<string, unknown> {
+    const doc = this.doc(id);
+    const row = this.lockRow(doc.abs);
+    if (!row || row.token !== token) throw new Fail(Code.locked, "lock token does not match");
+    this.db.raw.prepare(`DELETE FROM file_locks WHERE path = ?`).run(doc.abs);
+    return { doc_id: doc.id, locked: false };
+  }
+
+  writeDoc(id: string, markdown: string, baseSha: string, token: string): Record<string, unknown> {
+    const doc = this.doc(id);
+    this.expireLocks();
+    const row = this.lockRow(doc.abs);
+    if (!row || row.token !== token || Date.parse(row.expires_at) <= Date.now()) {
+      throw new Fail(Code.locked, "edit requires a current file lock");
+    }
+    const current = this.fileSha(doc);
+    const disk = fs.readFileSync(doc.abs, "utf8");
+    if (current !== baseSha) {
+      return { ok: false, kept: "local", doc_id: doc.id, path: doc.abs, sha256: current, markdown: disk };
+    }
+    fs.mkdirSync(path.dirname(doc.abs), { recursive: true });
+    fs.writeFileSync(doc.abs, markdown);
+    this.db.raw.prepare(`DELETE FROM file_locks WHERE path = ?`).run(doc.abs);
+    this.reindex();
+    return { ok: true, kept: "site", ...this.get(id) };
+  }
+
+  renderPlant(source: string): { ok: boolean; svg?: string; error?: string } {
+    return plantuml(source);
+  }
+
+  private revision(doc: Doc): string {
+    if (doc.inside) return this.git.blob(doc.path);
+    return this.fileSha(doc);
+  }
+
+  private fileSha(doc: Doc): string {
+    return createHash("sha256").update(fs.readFileSync(doc.abs)).digest("hex");
+  }
+
+  private expireLocks(): void {
+    this.db.raw.prepare(`DELETE FROM file_locks WHERE expires_at <= ?`).run(new Date().toISOString());
+  }
+
+  private lockRow(abs: string): { token: string; owner: string; base_sha: string; expires_at: string } | undefined {
+    return this.db.raw.prepare(`SELECT token, owner, base_sha, expires_at FROM file_locks WHERE path = ?`).get(abs) as
+      | { token: string; owner: string; base_sha: string; expires_at: string }
+      | undefined;
+  }
+
+  private static docId(meta: ReturnType<typeof Fm.read>, file: { abs: string; rel: string | null }): string {
+    const stated = meta?.str(Need.id) ?? "";
+    if (stated) return stated;
+    const base = (file.rel ?? file.abs).replace(/\\/g, "/").replace(/\.mdx?$/i, "");
+    const slug = base
+      .split("/")
+      .filter(Boolean)
+      .join(".")
+      .replace(/[^A-Za-z0-9._-]+/g, "-")
+      .replace(/^\.+|\.+$/g, "");
+    return `ext.${slug || "doc"}`;
+  }
+
+  private static headingTitle(markdown: string): string {
+    const body = markdown.replace(/^\uFEFF/, "").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
+    const found = /^#{1,6}\s+(.+)$/m.exec(body);
+    return found ? found[1].trim() : "";
   }
 
   private changeRow(id: string): ChangeRow {

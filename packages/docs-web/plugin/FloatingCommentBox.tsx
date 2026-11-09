@@ -32,17 +32,10 @@ export function FloatingCommentBox({
   // Compute position relative to page scroll
   const rangeRect = pending.rect;
   const boxWidth = Math.min(340, window.innerWidth - 32);
-  const boxHeight = 44;
 
   const scrollX = window.scrollX || window.pageXOffset;
-  const scrollY = window.scrollY || window.pageYOffset;
 
-  // Convert document coordinates of selection to viewport to determine flip above/below
-  const viewportTop = rangeRect.top - scrollY;
-  const preferAbove = viewportTop >= boxHeight + 16;
-  const top = preferAbove
-    ? rangeRect.top - boxHeight - 8
-    : rangeRect.bottom + 8;
+  const top = rangeRect.bottom + 8;
 
   // Center horizontally with respect to selection, clamped to viewport margins
   const centerLeft = (rangeRect.left + rangeRect.right) / 2 - boxWidth / 2;

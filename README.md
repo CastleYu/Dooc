@@ -26,4 +26,4 @@ node packages/docs-mcp/dist/stdio.js --repo . --db .dooc/collab.db
 
 前两项通过 MCP 创建或修改文档提议，校验后等待人工审核；第三项由 CLI 在代码仓实施，并记录所用方案版本与检查证据。Dooc 不主动回调 Agent，也不运行模型或代码。
 
-[配置、技能与三条实践流程](docs/guides/agent-setup.md)
+[接入指南](docs/guide/integration.md)

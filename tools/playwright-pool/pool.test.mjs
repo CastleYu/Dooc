@@ -7,7 +7,7 @@ import { PoolCoordinator } from './coordinator.mjs';
 class Constants {
   static Image = process.env.DOOC_POOL_TEST_IMAGE ?? 'tether-sandbox:3.0.2';
   static Container = process.env.DOOC_POOL_TEST_CONTAINER ?? `dooc-pwpool-test-${process.pid}-${Date.now()}`;
-  static DoocUrl = process.env.DOOC_POOL_DOOC_URL ?? 'http://192.168.3.23:8788/';
+  static DoocUrl = process.env.DOOC_POOL_DOOC_URL ?? 'http://127.0.0.1:8787/';
   static Capacity = 2;
   static SyntheticUrl = 'http://synthetic.test/';
 }

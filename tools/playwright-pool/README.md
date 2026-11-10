@@ -44,7 +44,7 @@ try {
     runId, op: 'eval', leaseId: lease.leaseId, timeoutMs: 30000,
     code: `
       const page = await context.newPage();
-      await page.goto('http://192.168.3.23:8788/');
+      await page.goto('http://127.0.0.1:8787/');
       return { url: page.url(), title: await page.title() };
     `,
   });
@@ -78,7 +78,7 @@ node --test tools/playwright-pool/pool.test.mjs
 
 测试会创建一个一次性的 `tether-sandbox:3.0.2` 容器（独立名称，不启停 `tether-sandbox`），跑完删除。可用 `DOOC_POOL_TEST_IMAGE`、`DOOC_POOL_TEST_CONTAINER`、`DOOC_POOL_DOOC_URL` 覆盖。测试只读 Dooc 页面；写操作用合成页。
 
-Dooc 浏览器入口是 `http://192.168.3.23:8788/`，不要用容器内 `127.0.0.1:8788`。容器到该地址的连通性由测试 4 实际验证。
+默认打开本机 `http://127.0.0.1:8787/`。容器里的这个地址指向容器自身，需要从容器访问宿主机上的文档站时，设置 `DOOC_POOL_DOOC_URL`。测试 4 会打开该地址并请求同源 `/health`。
 
 ## 已知边界
 

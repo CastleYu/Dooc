@@ -35,8 +35,12 @@ function drawExcalidraw(source: string): { ok: true; svg: string } | { ok: false
     maxY = Math.max(maxY, y + h + 24);
     const stroke = el.strokeColor || "#1e1e1e";
     const fill = el.backgroundColor && el.backgroundColor !== "transparent" ? el.backgroundColor : "none";
-    if (el.type === "rectangle" || el.type === "diamond") {
+    if (el.type === "rectangle") {
       parts.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke}" />`);
+    } else if (el.type === "diamond") {
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      parts.push(`<polygon points="${cx},${y} ${x + w},${cy} ${cx},${y + h} ${x},${cy}" fill="${fill}" stroke="${stroke}" />`);
     } else if (el.type === "ellipse") {
       parts.push(`<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2}" ry="${h / 2}" fill="${fill}" stroke="${stroke}" />`);
     } else if (el.type === "text") {

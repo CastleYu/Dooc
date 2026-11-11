@@ -102,6 +102,54 @@ html:root {
   background: #fff;
 }
 
+.rp-doc-layout__sidebar.dooc-nav-ready > :not(.dooc-doc-nav) {
+  display: none !important;
+}
+
+.rspress-doc.dooc-live-ready > :not(.dooc-live-doc) {
+  display: none !important;
+}
+
+.dooc-doc-nav {
+  padding: 12px 8px 24px;
+}
+
+.dooc-doc-nav h2 {
+  margin: 14px 12px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rp-c-text-1, inherit);
+}
+
+.dooc-doc-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dooc-doc-nav a {
+  display: block;
+  margin-top: 2px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  color: var(--rp-c-text-2, inherit);
+  font-size: 14px;
+  line-height: 24px;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.dooc-doc-nav a:hover {
+  color: var(--rp-c-text-1, inherit);
+  background: var(--rp-c-bg-mute, rgba(0, 0, 0, 0.04));
+}
+
+.dooc-doc-nav a[aria-current="page"] {
+  color: var(--rp-c-link, #0095ff);
+  background: var(--rp-c-brand-tint, rgba(0, 149, 255, 0.12));
+  font-weight: 600;
+}
+
 .dooc-library {
   display: grid;
   grid-template-columns: 280px 1fr;

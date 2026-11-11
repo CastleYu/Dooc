@@ -28,4 +28,4 @@ description: 通过 Dooc MCP 读取和维护文档、处理批注与提议，或
 
 ## 接入
 
-使用已配置的 Dooc MCP，并确认其 `--repo` 与 `--db` 指向目标文档仓库和批注库；代码仓可与文档仓分开。连接网页实例时使用同一数据源。配置与客户端安装见仓库 `docs/guides/agent-setup.md`。本 Skill 不隐含安装、部署或发布授权。
+使用已配置的 Dooc MCP。在文档仓库根目录启动时不必传参：仓库是当前目录，批注库是 `.dooc/collab.db`。代码仓可与文档仓分开。连接网页实例时使用同一数据源。配置见仓库 `docs/guide/integration.md`。本 Skill 不隐含安装、部署或发布授权。

@@ -9,8 +9,9 @@
     "packages/docs-web"
   ],
   "scripts": {
-    "build:svc": "tsc -p packages/docs-api/tsconfig.json && tsc -p packages/docs-mcp/tsconfig.json",
+    "build:svc": "node node_modules/typescript/bin/tsc -p packages/docs-api/tsconfig.json && node node_modules/typescript/bin/tsc -p packages/docs-mcp/tsconfig.json",
     "build:web": "npm run build -w @dooc/docs-web",
+    "dev": "node scripts/dev.mjs",
     "test": "npm run build:svc && node --test packages/docs-api/test/flow.test.mjs packages/docs-mcp/test/mcp.test.mjs"
   },
   "devDependencies": {

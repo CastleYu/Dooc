@@ -22,10 +22,36 @@ import { FloatingCommentBox } from "./FloatingCommentBox";
 import { CommentMarkerLayer } from "./CommentMarkerLayer";
 import { CommentSidebar } from "./CommentSidebar";
 import { EditorBar } from "./EditorBar";
+import { paintMarkdown } from "./paint";
+
+function LiveDoc({ markdown, onPaint }: { markdown: string; onPaint: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const onPaintRef = useRef(onPaint);
+  onPaintRef.current = onPaint;
+  useEffect(() => {
+    const host = ref.current;
+    if (!host) return;
+    let cancelled = false;
+    paintMarkdown(host, markdown).then((painted) => {
+      if (!cancelled && painted) onPaintRef.current();
+    }).catch(() => {
+      /* keep the previous body if the renderer is unavailable */
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [markdown]);
+  return <div ref={ref} className="dooc-live-doc" />;
+}
 
 export default function Dock() {
   const page = usePageData() as { page?: { frontmatter?: { id?: string } } };
-  const docId = page?.page?.frontmatter?.id ?? "";
+  const pageId = page?.page?.frontmatter?.id ?? "";
+  const [locationDoc, setLocationDoc] = useState({ path: "", doc: "" });
+  const [locationReady, setLocationReady] = useState(false);
+  const libraryPage = locationDoc.path === "/library";
+  const openedId = libraryPage ? locationDoc.doc : "";
+  const docId = !locationReady ? "" : openedId || pageId;
 
   const [anchors, setAnchors] = useState<AnchorsResponse | null>(null);
   const [comments, setComments] = useState<CommentItem[]>([]);
@@ -73,7 +99,8 @@ export default function Dock() {
   submitErrorRef.current = submitError;
   const editingRef = useRef(false);
   editingRef.current = editing;
-  const seenVersionRef = useRef<string | null>(null);
+  const [shownMd, setShownMd] = useState<string | null>(null);
+  const [articleHost, setArticleHost] = useState<HTMLElement | null>(null);
 
   // Measure desktop track in real document space
   const measureDesktopTrack = useCallback(() => {
@@ -121,7 +148,11 @@ export default function Dock() {
         return;
       }
 
+      const libraryView = document.getElementById("dooc-library-view");
+      const live = document.querySelector(".dooc-live-doc") as HTMLElement | null;
       const container =
+        (openedId && libraryView) ||
+        (live && live.childNodes.length ? live : null) ||
         (document.querySelector(".rspress-doc") as HTMLElement) ||
         (document.querySelector("article") as HTMLElement) ||
         (document.querySelector(".rp-doc") as HTMLElement) ||
@@ -170,7 +201,7 @@ export default function Dock() {
 
       setMarkers(Array.from(markerMap.values()));
     },
-    [docId]
+    [docId, openedId]
   );
 
   // Fetch anchors and comments when docId changes
@@ -274,6 +305,30 @@ export default function Dock() {
     };
   }, [docId, fetchData]);
 
+  useEffect(() => {
+    const read = () => {
+      const path = window.location.pathname;
+      const doc = path === "/library" ? new URLSearchParams(window.location.search).get("doc") ?? "" : "";
+      setLocationDoc((prev) => (prev.path === path && prev.doc === doc ? prev : { path, doc }));
+      setLocationReady(true);
+    };
+    const onOpen = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      if (typeof id !== "string" || !id) return;
+      setLocationDoc({ path: "/library", doc: id });
+      setLocationReady(true);
+    };
+    read();
+    const timer = window.setInterval(read, 400);
+    window.addEventListener("popstate", read);
+    window.addEventListener("dooc-open-doc", onOpen);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("popstate", read);
+      window.removeEventListener("dooc-open-doc", onOpen);
+    };
+  }, []);
+
   // Mounted SSR guard
   useEffect(() => {
     setMounted(true);
@@ -321,32 +376,83 @@ export default function Dock() {
 
   useEffect(() => {
     if (!docId) return;
-    seenVersionRef.current = null;
-    const timer = window.setInterval(() => {
+    const refresh = () => {
       if (!editingRef.current) fetchData(docId);
-    }, 3000);
-    return () => window.clearInterval(timer);
+    };
+    const timer = window.setInterval(refresh, 3000);
+    window.addEventListener("dooc-doc-saved", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("dooc-doc-saved", refresh);
+    };
   }, [docId, fetchData]);
 
   useEffect(() => {
-    if (!anchors || editing) return;
-    if (seenVersionRef.current === null) {
-      seenVersionRef.current = anchors.version_sha;
-      return;
-    }
-    if (seenVersionRef.current === anchors.version_sha) return;
-    seenVersionRef.current = anchors.version_sha;
-    const host = document.querySelector(".rspress-doc") as HTMLElement | null;
-    if (!host) return;
-    const body = anchors.markdown.replace(/^\uFEFF/, "").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
-    import("marked").then(({ marked }) => {
-      host.innerHTML = marked.parse(body, { async: false }) as string;
-      window.dispatchEvent(new CustomEvent("dooc-rich-render"));
-      refreshMarkers(anchors, comments);
-    }).catch(() => {
-      /* keep the built page if the renderer is unavailable */
-    });
-  }, [anchors, comments, editing, refreshMarkers]);
+    const place = () => {
+      const next = document.querySelector(".rspress-doc") as HTMLElement | null;
+      setArticleHost((prev) => (prev === next ? prev : next));
+    };
+    place();
+    const timer = window.setInterval(place, 400);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!locationReady || libraryPage || editing || !anchors) return;
+    setShownMd((prev) => (prev === anchors.markdown ? prev : anchors.markdown));
+  }, [anchors, editing, libraryPage, locationReady]);
+
+  useEffect(() => {
+    if (libraryPage || !locationReady) setShownMd(null);
+  }, [libraryPage, locationReady]);
+
+  useEffect(() => {
+    if (!articleHost) return;
+    const live = Boolean(shownMd) && locationReady && !libraryPage;
+    articleHost.classList.toggle("dooc-live-ready", live);
+    return () => articleHost.classList.remove("dooc-live-ready");
+  }, [articleHost, shownMd, libraryPage, locationReady]);
+
+  const refreshMarkersRef = useRef(refreshMarkers);
+  refreshMarkersRef.current = refreshMarkers;
+  const anchorsRef = useRef(anchors);
+  anchorsRef.current = anchors;
+  const commentsRef = useRef(comments);
+  commentsRef.current = comments;
+
+  const openedMarkdown = openedId && anchors && !editing ? anchors.markdown : "";
+  useEffect(() => {
+    if (!openedId || !openedMarkdown) return;
+    let cancelled = false;
+    const run = async () => {
+      const start = Date.now();
+      let host: HTMLElement | null = null;
+      while (Date.now() - start < 4000) {
+        host = document.getElementById("dooc-library-view");
+        if (host) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      if (cancelled || !host) return;
+      let painted = false;
+      try {
+        painted = await paintMarkdown(host, openedMarkdown);
+      } catch {
+        return;
+      }
+      const currentAnchors = anchorsRef.current;
+      if (!cancelled && painted && currentAnchors?.markdown === openedMarkdown) {
+        refreshMarkersRef.current(currentAnchors, commentsRef.current);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [openedId, openedMarkdown]);
+
+  const repaintMarkers = useCallback(() => {
+    if (anchors && comments) refreshMarkers(anchors, comments);
+  }, [anchors, comments, refreshMarkers]);
 
   // Portal target & TOC layout management: strictly scoped to docId with cleanup
   useEffect(() => {
@@ -655,6 +761,8 @@ export default function Dock() {
 
   return (
     <div className="dooc-root" data-dooc-marker={Web.marker}>
+      {articleHost && shownMd && locationReady && !libraryPage &&
+        createPortal(<LiveDoc markdown={shownMd} onPaint={repaintMarkers} />, articleHost)}
       {/* Load error toast with retry */}
       {loadError && (
         <div className="dooc-error-toast" role="alert">

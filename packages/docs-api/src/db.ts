@@ -2,14 +2,65 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+function nolockUri(file: string): string {
+  const abs = path.resolve(file).replaceAll("\\", "/");
+  const prefixed = abs.startsWith("/") ? abs : `/${abs}`;
+  return `file:${prefixed}?nolock=1`;
+}
+
+// CIFS and NFS often reject SQLite's POSIX locks. Two processes then fail with
+// "locking protocol" after WAL is enabled. Those mounts share one unlocked file.
+function sharedLockWorks(file: string): boolean {
+  if (process.platform !== "linux") return true;
+  try {
+    const abs = path.resolve(file);
+    let best = "";
+    let kind = "";
+    for (const line of fs.readFileSync("/proc/mounts", "utf8").split("\n")) {
+      const [, targetRaw, fstype, options] = line.split(" ");
+      if (!targetRaw || !fstype) continue;
+      const target = targetRaw.replaceAll("\\040", " ");
+      if (abs !== target && !abs.startsWith(`${target}/`)) continue;
+      if (target.length < best.length) continue;
+      best = target;
+      kind = `${fstype} ${options ?? ""}`;
+    }
+    if (!best) return true;
+    return !/\b(cifs|nfs4?|smb3?|fuse)\b/.test(kind) && !/\bnounix\b/.test(kind);
+  } catch {
+    return true;
+  }
+}
+
+function openDatabase(file: string): DatabaseSync {
+  if (sharedLockWorks(file)) {
+    const raw = new DatabaseSync(file);
+    raw.exec("PRAGMA journal_mode = WAL");
+    raw.exec("PRAGMA busy_timeout = 4000");
+    return raw;
+  }
+  let locked: DatabaseSync | undefined;
+  try {
+    locked = new DatabaseSync(file);
+    locked.exec("PRAGMA busy_timeout = 4000");
+    locked.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    locked.exec("PRAGMA journal_mode = DELETE");
+    locked.close();
+    locked = undefined;
+  } catch {
+    try { locked?.close(); } catch { /* the unlocked open reports the failure */ }
+  }
+  const raw = new DatabaseSync(nolockUri(file));
+  raw.exec("PRAGMA busy_timeout = 4000");
+  return raw;
+}
+
 export class Db {
   raw: DatabaseSync;
 
   constructor(file: string) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    this.raw = new DatabaseSync(file);
-    this.raw.exec("PRAGMA journal_mode = WAL");
-    this.raw.exec("PRAGMA busy_timeout = 4000");
+    this.raw = openDatabase(file);
     this.raw.exec(`
       CREATE TABLE IF NOT EXISTS comments (
         id TEXT PRIMARY KEY,

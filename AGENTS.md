@@ -13,7 +13,7 @@
 编译后启动：
 
 ```text
-node packages/docs-mcp/dist/stdio.js --repo . --db .dooc/collab.db
+node packages/docs-mcp/dist/stdio.js
 ```
 
 把该命令配到外部 CLI 的 MCP 客户端。stdio 只提供工具、资源和提示。合并已发布分支的批准接口不在 MCP 中。

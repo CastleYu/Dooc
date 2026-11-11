@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Web } from "./keys";
+import { paintMarkdown } from "./paint";
 
 type DocItem = { doc_id: string; title: string; path: string };
 type LinkDir = { path: string; documents: DocItem[] };
@@ -54,6 +55,14 @@ export default function Library() {
   }, [loadLinks, loadBrowse]);
 
   useEffect(() => {
+    if (!host || editing) return;
+    const timer = window.setInterval(() => {
+      loadLinks().catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [host, editing, loadLinks]);
+
+  useEffect(() => {
     if (!current || editing) return;
     const timer = window.setInterval(async () => {
       const res = await fetch(`${Web.api}/api/docs/${encodeURIComponent(current)}`, { headers });
@@ -69,12 +78,16 @@ export default function Library() {
   }, [current, base, editing]);
 
   const paint = async (text: string) => {
-    const slot = document.getElementById("dooc-library-view");
-    if (!slot) return;
-    const { marked } = await import("marked");
-    const body = text.replace(/^\uFEFF/, "").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
-    slot.innerHTML = marked.parse(body, { async: false }) as string;
-    window.dispatchEvent(new CustomEvent("dooc-rich-render"));
+    const start = Date.now();
+    let slot: HTMLElement | null = null;
+    while (Date.now() - start < 4000) {
+      slot = document.getElementById("dooc-library-view");
+      if (slot) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    if (!slot) return false;
+    await paintMarkdown(slot, text);
+    return true;
   };
 
   const openDoc = async (id: string) => {
@@ -90,8 +103,41 @@ export default function Library() {
     setCurrent(id);
     setMarkdown(data.markdown ?? "");
     setBase(data.sha256 ?? "");
-    await paint(data.markdown ?? "");
+    return paint(data.markdown ?? "");
   };
+
+  useEffect(() => {
+    let opened = "";
+    let pending = "";
+    const show = (id: string) => {
+      if (!id || id === opened || id === pending) return;
+      pending = id;
+      openDoc(id).then((ok) => {
+        if (ok !== false) opened = id;
+        if (pending === id) pending = "";
+      });
+    };
+    const fromUrl = () => {
+      const slot = document.getElementById("dooc-library");
+      if (!slot) {
+        opened = "";
+        pending = "";
+        return;
+      }
+      show(new URLSearchParams(window.location.search).get("doc") ?? "");
+    };
+    const onOpen = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      if (id) show(id);
+    };
+    fromUrl();
+    const timer = window.setInterval(fromUrl, 400);
+    window.addEventListener("dooc-open-doc", onOpen);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("dooc-open-doc", onOpen);
+    };
+  }, []);
 
   const linkDir = async (path: string) => {
     setMessage("");
@@ -107,6 +153,7 @@ export default function Library() {
     }
     setDirs(data.directories ?? []);
     setMessage(`已链接 ${path}`);
+    window.dispatchEvent(new Event("dooc-nav-refresh"));
   };
 
   const unlink = async (path: string) => {
@@ -116,7 +163,10 @@ export default function Library() {
       body: JSON.stringify({ path }),
     });
     const data = await res.json();
-    if (res.ok) setDirs(data.directories ?? []);
+    if (res.ok) {
+      setDirs(data.directories ?? []);
+      window.dispatchEvent(new Event("dooc-nav-refresh"));
+    }
   };
 
   const beginEdit = async () => {
@@ -152,6 +202,7 @@ export default function Library() {
       setBase(data.sha256 ?? base);
       setMessage("磁盘内容已变化，已保留本地文件。");
       await paint(data.markdown ?? "");
+      window.dispatchEvent(new Event("dooc-nav-refresh"));
       return;
     }
     setEditing(false);
@@ -160,6 +211,7 @@ export default function Library() {
     setMessage("已写回文件");
     await paint(data.markdown ?? markdown);
     await loadLinks();
+    window.dispatchEvent(new Event("dooc-nav-refresh"));
   };
 
   if (!host) return null;
@@ -171,21 +223,25 @@ export default function Library() {
         <p>{browsePath}</p>
         <div className="dooc-library-actions">
           {parent && <button type="button" onClick={() => loadBrowse(parent)}>上级</button>}
-          <button type="button" onClick={() => linkDir(browsePath)}>链接此目录</button>
+          <button type="button" onClick={() => linkDir(manual.trim() || browsePath)}>链接这个目录</button>
         </div>
         <ul>
           {children.map((dir) => (
             <li key={dir.path}>
               <button type="button" onClick={() => loadBrowse(dir.path)}>{dir.name}</button>
               <span> {dir.markdown} 篇</span>
+              <button type="button" onClick={() => linkDir(dir.path)}>链接</button>
             </li>
           ))}
         </ul>
         <label>
-          绝对路径
-          <input value={manual} onChange={(e) => setManual(e.target.value)} />
+          其他路径
+          <input
+            value={manual}
+            placeholder="留空则链接当前目录"
+            onChange={(e) => setManual(e.target.value)}
+          />
         </label>
-        <button type="button" onClick={() => manual.trim() && linkDir(manual.trim())}>链接路径</button>
         <h2>已链接</h2>
         {dirs.map((dir) => (
           <section key={dir.path}>
@@ -193,7 +249,16 @@ export default function Library() {
             <ul>
               {dir.documents.map((doc) => (
                 <li key={doc.doc_id}>
-                  <button type="button" onClick={() => openDoc(doc.doc_id)}>{doc.title}</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const href = `/library?doc=${encodeURIComponent(doc.doc_id)}`;
+                      window.history.pushState({}, "", href);
+                      window.dispatchEvent(new CustomEvent("dooc-open-doc", { detail: doc.doc_id }));
+                    }}
+                  >
+                    {doc.title}
+                  </button>
                 </li>
               ))}
             </ul>

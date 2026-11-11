@@ -181,7 +181,9 @@ export class Selection {
       const prefix = /^(?: {0,3}>\s*)*(?: {0,3}(?:[-+*]|\d+[.)])\s+)?/.exec(line)![0];
       if (/^(?: {0,3}>\s*)* {0,3}(?:[-+*]|\d+[.)])\s+/.test(line)) flush();
       // HTML/MDX and image-only content need their own renderer mapping.
-      if (/[<>]|!\[/.test(line)) { flush(); continue; }
+      // A handwritten break is the exception: it renders as a space and stays in the quote.
+      const withoutBreaks = line.replace(/<br\s*\/?>/gi, "");
+      if (/[<>]|!\[/.test(withoutBreaks)) { flush(); continue; }
       chunks.push({ text: line.slice(prefix.length), start: row.index! + prefix.length });
     }
     flush();
@@ -199,6 +201,11 @@ export class Selection {
         const pad = code[2].startsWith(" ") && code[2].endsWith(" ") && /[^ ]/.test(code[2]) ? 1 : 0;
         for (let j = pad; j < code[2].length - pad; j++) out.push({ text: code[2][j], start: base + i + code[1].length + j, end: base + i + code[1].length + j + 1 });
         i += code[0].length; continue;
+      }
+      const br = /^<br\s*\/?>/i.exec(text.slice(i));
+      if (br) {
+        out.push({ text: " ", start: base + i, end: base + i + br[0].length });
+        i += br[0].length; continue;
       }
       const link = /^\[([^\]]+)\]\((?:[^()\\]|\\.|\([^()]*\))*\)/.exec(text.slice(i));
       if (link) {

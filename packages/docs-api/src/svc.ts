@@ -727,8 +727,14 @@ export class Svc {
 
   private static headingTitle(markdown: string): string {
     const body = markdown.replace(/^\uFEFF/, "").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
-    const found = /^#{1,6}\s+(.+)$/m.exec(body);
-    return found ? found[1].trim() : "";
+    const lines = body.split(/\r?\n/);
+    const hide = Anchor.hide(lines);
+    for (let i = 0; i < lines.length; i++) {
+      if (hide[i]) continue;
+      const found = /^#\s+(.+)$/.exec(lines[i]);
+      if (found) return found[1].trim();
+    }
+    return "";
   }
 
   private changeRow(id: string): ChangeRow {

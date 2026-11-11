@@ -6,14 +6,18 @@
 
 ```text
 npm ci
-npm run build:svc
-npm test
-npm run build:web
-node packages/docs-api/dist/cli.js --repo . --db .dooc/collab.db --port 8787
-node packages/docs-mcp/dist/stdio.js --repo . --db .dooc/collab.db
+npm run dev
 ```
 
-生产页面通过同源 `/api/` 访问协作接口。已链接目录可以直接改文件，文档站编辑会先锁文件，冲突时保留磁盘内容。需要审核时仍可提交提议，人批准后才合并进当前 Git 分支。本地独立 API 示例端口为 `8787`。
+这一条命令会编译接口，并同时打开文档站和协作 API。文档仓库用当前目录，批注库用 `.dooc/collab.db`，接口在 `8787`。文档站把 `/api` 转到这个接口。
+
+外部 CLI 在仓库根目录配置 MCP，不必再写参数：
+
+```text
+node packages/docs-mcp/dist/stdio.js
+```
+
+已链接目录可以直接改文件。文档站编辑会先锁文件，冲突时保留磁盘内容。需要审核时仍可提交提议，人批准后才合并进当前 Git 分支。`npm test` 会重新编译并运行接口测试。
 
 
 ## 对话驱动的协作

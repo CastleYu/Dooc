@@ -79,6 +79,7 @@ export function EditorBar({
         setMarkdown(data.markdown ?? markdown);
         setBase(data.sha256 ?? base);
         setMessage("磁盘内容已变化，已保留本地文件。");
+        window.dispatchEvent(new Event("dooc-nav-refresh"));
         return;
       }
       setMessage("已写回文件");

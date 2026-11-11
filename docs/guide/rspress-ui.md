@@ -15,7 +15,7 @@ code_refs:
 symbols:
   - pluginCollab
 created_at: 2026-11-09
-updated_at: 2026-11-09
+updated_at: 2026-11-11
 ---
 
 # Rspress UI 组件
@@ -24,7 +24,7 @@ updated_at: 2026-11-09
 
 ## 导航与侧栏
 
-顶栏来自 `themeConfig.nav`，左侧目录来自 `themeConfig.sidebar`。当前内置入口是本页、接入指南和链接文档。
+顶栏来自 `themeConfig.nav`。左侧目录读取当前文档索引，大约每 3 秒刷新标题、新增文件和已链接目录。已经构建出页面的仓库文档仍打开对应地址。还没有页面的仓库文件，以及仓库外的文件，打开「链接文档」页。
 
 搜索框使用 Rspress 的本地搜索，索引的是构建进站点的 Markdown。
 

@@ -12,6 +12,7 @@ export function pluginCollab(): RspressPlugin {
       path.join(dir, "Dock.tsx"),
       path.join(dir, "RichBlocks.tsx"),
       path.join(dir, "Library.tsx"),
+      path.join(dir, "DocNav.tsx"),
     ],
     async afterBuild() {
       const out = path.join(dir, "..", "doc_build");

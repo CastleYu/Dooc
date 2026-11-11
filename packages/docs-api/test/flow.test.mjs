@@ -463,6 +463,33 @@ describe("collaboration", () => {
     assert.equal(stale.json.error.code, "stale");
   });
 
+  it("titles a file from its h1 and keeps a handwritten break in the quote", async () => {
+    const box = fresh();
+    open.push(box);
+    await listen(box);
+    const notes = fs.mkdtempSync(path.join(os.tmpdir(), "dooc-title-"));
+    fs.writeFileSync(path.join(notes, "only-h2.md"), "## 只有二级\n\n正文。\n");
+    fs.writeFileSync(
+      path.join(notes, "break.md"),
+      "```md\n# 假标题\n```\n\n# 真标题\n\n甲<br>乙。\n\n<div>不要选</div>\n",
+    );
+    const linked = await call(box, "POST", "/api/links", { path: notes });
+    assert.equal(linked.status, 200);
+    const docs = linked.json.directories.find((item) => item.path === fs.realpathSync(notes)).documents;
+    assert.equal(docs.find((item) => item.path.endsWith("only-h2.md")).title, "only-h2");
+    const titled = docs.find((item) => item.path.endsWith("break.md"));
+    assert.equal(titled.title, "真标题");
+    const anchors = await call(box, "GET", `/api/docs/${titled.doc_id}/anchors`);
+    assert.equal(anchors.status, 200);
+    const block = anchors.json.blocks.find((item) => item.heading === "真标题");
+    assert.equal(block.text, "甲 乙。");
+    assert.equal(anchors.json.blocks.some((item) => item.text.includes("不要选")), false);
+    const start = block.text.indexOf("甲");
+    const end = block.text.indexOf("。");
+    const raw = anchors.json.markdown.slice(block.starts[start], block.ends[end]);
+    assert.equal(raw, "甲<br>乙。");
+  });
+
   it("skips GFM tables while preserving following paragraph source offsets", async () => {
     const box = fresh();
     open.push(box);
